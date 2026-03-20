@@ -3,3 +3,6 @@ gunicorn
 psycopg2-binary
 celery
 redis
+django-encrypted-model-fields
+proxmoxer
+requests
