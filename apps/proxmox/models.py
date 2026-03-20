@@ -1,3 +1,3 @@
 from django.db import models
 
-# Create your models here.
+# Proxmox models are handled via apps.ranges and apps.dashboard

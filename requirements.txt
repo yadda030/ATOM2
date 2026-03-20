@@ -6,3 +6,7 @@ redis
 django-encrypted-model-fields
 proxmoxer
 requests
+django-celery-beat
+channels
+channels-redis
+daphne

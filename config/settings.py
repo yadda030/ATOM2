@@ -35,6 +35,7 @@ CSRF_TRUSTED_ORIGINS = ['http://localhost:8000']
 # Application definition
 
 INSTALLED_APPS = [
+    'daphne',  # must be first
     'django.contrib.admin',
     'django.contrib.auth',
     'django.contrib.contenttypes',
@@ -43,6 +44,7 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     # Third party
     'encrypted_model_fields',
+    'django_celery_beat',
     # Local apps
     'apps.config_server',
     'apps.proxmox',
@@ -83,6 +85,19 @@ WSGI_APPLICATION = 'config.wsgi.application'
 # Async workers
 CELERY_BROKER_URL = 'redis://redis:6379/0'
 CELERY_RESULT_BACKEND = 'redis://redis:6379/0'
+CELERY_BROKER_URL = 'redis://redis:6379/0'
+CELERY_RESULT_BACKEND = 'redis://redis:6379/0'
+CELERY_BEAT_SCHEDULER = 'django_celery_beat.schedulers:DatabaseScheduler'
+
+# DJango Channels
+CHANNEL_LAYERS = {
+    'default': {
+        'BACKEND': 'channels_redis.core.RedisChannelLayer',
+        'CONFIG': {
+            'hosts': [('redis', 6379)],
+        },
+    },
+}
 
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases

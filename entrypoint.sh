@@ -25,5 +25,21 @@ python manage.py migrate --noinput
 echo "Running static collect"
 python manage.py collectstatic --noinput
 
-echo "Starting Gunicorn..."
-exec gunicorn config.wsgi:application --bind 0.0.0.0:8000 --workers 3
+echo "Starting Daphne..."
+exec daphne -b 0.0.0.0 -p 8000 config.asgi:application
+```
+
+Add `daphne` to `requirements.txt`:
+```
+Django>=4.2
+gunicorn
+psycopg2-binary
+celery
+redis
+django-encrypted-model-fields
+proxmoxer
+requests
+django-celery-beat
+channels
+channels-redis
+daphne
