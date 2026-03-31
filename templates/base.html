@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Atom2{% endblock %}</title>
+    {% load static %}
+    <link rel="stylesheet" href="{% static 'css/main.css' %}">
+    {% block extra_head %}{% endblock %}
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body>
+
+<nav class="navbar">
+    <div class="nav-left">
+        <a href="{% url 'landing' %}" class="nav-logo">Atom2</a>
+    </div>
+
+    <div class="nav-center">
+        {% if request.user.is_authenticated %}
+        <a href="{% url 'dashboard' %}" class="nav-link">Dashboard</a>
+        <a href="#" class="nav-link">Ranges</a>
+        <a href="#" class="nav-link">Scripts</a>
+        <a href="#" class="nav-link">Templates</a>
+        {% endif %}
+    </div>
+
+    <div class="nav-right">
+        {% if request.user.is_authenticated %}
+        <span class="nav-user">{{ request.user.username }}</span>
+        <a href="{% url 'logout' %}" class="nav-btn-outline">Logout</a>
+        {% else %}
+        <a href="{% url 'login' %}" class="nav-btn">Login</a>
+        {% endif %}
+    </div>
+</nav>
+
+<main class="main-content">
+    {% block content %}{% endblock %}
+</main>
+
+{% block extra_scripts %}{% endblock %}
+</body>
+</html>
