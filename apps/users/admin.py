@@ -3,8 +3,11 @@ from django.contrib.auth.admin import UserAdmin
 from django.contrib.auth.models import User as DefaultUser
 from .models import User
 
-# Unregister the default User
-admin.site.unregister(DefaultUser)
+# Safely unregister the default User
+try:
+    admin.site.unregister(DefaultUser)
+except admin.sites.NotRegistered:
+    pass
 
 
 class CustomUserAdmin(UserAdmin):

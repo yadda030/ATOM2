@@ -1,10 +1,122 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>Atom2 Dashboard</title>
-</head>
-<body>
-    <h1>Welcome, {{ request.user.username }}</h1>
-    <a href="/accounts/logout/">Logout</a>
-</body>
-</html>
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Dashboard{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/dashboard.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-title">Dashboard</div>
+
+    <!-- Cluster Stats -->
+    <div class="stats-grid">
+        <div class="stat-card">
+            <div class="stat-label">Nodes online</div>
+            <div class="stat-value">
+                <span class="stat-dot dot-green"></span>
+                {{ cluster_stats.nodes_online }}
+                <span>/ {{ cluster_stats.total_nodes|default:"0" }}</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Active ranges</div>
+            <div class="stat-value">
+                {{ deployments.count }}
+                <span>ranges</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">VMs running</div>
+            <div class="stat-value">
+                <span class="stat-dot dot-blue"></span>
+                {{ cluster_stats.total_vms }}
+                <span>VMs</span>
+            </div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-label">Cluster CPU</div>
+            <div class="stat-value">
+                {% if cluster_stats.nodes %}
+                    {{ cluster_stats.nodes.0.cpu }}
+                    <span>%</span>
+                {% else %}
+                    <span>N/A</span>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Grid -->
+    <div class="main-grid">
+
+        <!-- Active Deployments -->
+        <div>
+            <div class="section-title">Active deployments</div>
+
+            {% if deployments %}
+                {% for deployment in deployments %}
+                <div class="deployment-card">
+                    <div class="deployment-header">
+                        <div class="deployment-name">{{ deployment.name }}</div>
+                        <span class="badge badge-{{ deployment.status }}">
+                            {{ deployment.get_status_display }}
+                        </span>
+                    </div>
+                    <div class="vm-list">
+                        {% for vm in deployment.vms.all %}
+                        <div class="vm-row">
+                            <div>
+                                <div class="vm-name">{{ vm.name }}</div>
+                                <div class="vm-meta">{{ vm.node }} · VMID {{ vm.proxmox_vmid }}</div>
+                            </div>
+                            <div class="vm-status {{ vm.status }}">
+                                <span class="stat-dot dot-{{ vm.status }}"></span>
+                                {{ vm.get_status_display }}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    No active deployments. 
+                    <a href="#">Deploy a range</a> to get started.
+                </div>
+            {% endif %}
+        </div>
+
+        <!-- Recent Activity -->
+        <div>
+            <div class="section-title">Recent activity</div>
+            <div class="activity-card">
+                {% if activity %}
+                    {% for event in activity %}
+                    <div class="activity-item">
+                        <div class="activity-icon icon-{{ event.event_type }}">
+                            {% if event.event_type == 'deployment_complete' %}▶
+                            {% elif event.event_type == 'vm_checkin' %}⬇
+                            {% elif event.event_type == 'deployment_stopped' %}■
+                            {% elif event.event_type == 'user_registered' %}+
+                            {% elif event.event_type == 'deployment_failed' or event.event_type == 'vm_failed' %}✕
+                            {% else %}·
+                            {% endif %}
+                        </div>
+                        <div>
+                            <div class="activity-text">{{ event.message }}</div>
+                            <div class="activity-time">{{ event.created_at|timesince }} ago</div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-state">No recent activity.</div>
+                {% endif %}
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

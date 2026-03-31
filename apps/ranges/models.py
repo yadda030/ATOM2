@@ -116,3 +116,25 @@ class DeployedVMConfig(models.Model):
 
     def __str__(self):
         return f"{self.deployed_vm.name} config"
+    
+class ActivityLog(models.Model):
+    EVENT_TYPES = [
+        ('deployment_started', 'Deployment Started'),
+        ('deployment_complete', 'Deployment Complete'),
+        ('deployment_stopped', 'Deployment Stopped'),
+        ('deployment_failed', 'Deployment Failed'),
+        ('vm_checkin', 'VM Checked In'),
+        ('vm_failed', 'VM Failed'),
+        ('user_registered', 'User Registered'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    event_type = models.CharField(max_length=50, choices=EVENT_TYPES)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.event_type} - {self.created_at}"
