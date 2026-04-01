@@ -1,0 +1,69 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Script Library{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/scripts.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">Script Library</div>
+        <a href="{% url 'script_new' %}" class="btn-primary">+ New script</a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="filters">
+        <form method="get" style="display: flex; gap: 10px; align-items: center;">
+            <input class="search-input" type="text" name="search" value="{{ search }}" placeholder="Search scripts..." />
+            <button type="submit" name="type" value="" class="filter-btn {% if not script_type %}active{% endif %}">All</button>
+            <button type="submit" name="type" value="bootstrap" class="filter-btn {% if script_type == 'bootstrap' %}active{% endif %}">Bootstrap</button>
+            <button type="submit" name="type" value="config" class="filter-btn {% if script_type == 'config' %}active{% endif %}">Config</button>
+            <button type="submit" name="type" value="teardown" class="filter-btn {% if script_type == 'teardown' %}active{% endif %}">Teardown</button>
+        </form>
+    </div>
+
+    {% if scripts %}
+    <div class="script-grid">
+        {% for script in scripts %}
+        <div class="script-card">
+            <div class="script-card-header">
+                <div class="script-name">{{ script.name }}</div>
+                <span class="script-type type-{{ script.script_type }}">{{ script.get_script_type_display }}</span>
+            </div>
+            <div class="script-desc">{{ script.description|default:"No description." }}</div>
+            <div class="script-preview">{{ script.content|truncatechars:120 }}</div>
+            <div class="script-footer">
+                <div class="script-tags">
+                    {% for tag in script.tags.all %}
+                    <span class="tag">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+                <div class="script-meta">{{ script.variables.count }} variable{{ script.variables.count|pluralize }}</div>
+            </div>
+            <div class="script-actions">
+                <a href="{% url 'script_edit' script.pk %}" class="btn-sm btn-edit">Edit</a>
+                {% if script.created_by == request.user %}
+                <form method="post" action="{% url 'script_delete' script.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-sm btn-delete" onclick="return confirm('Delete this script?')">Delete</button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No scripts found. <a href="{% url 'script_new' %}">Create your first script</a>.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

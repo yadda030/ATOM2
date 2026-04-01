@@ -20,7 +20,7 @@
         {% if request.user.is_authenticated %}
         <a href="{% url 'dashboard' %}" class="nav-link">Dashboard</a>
         <a href="#" class="nav-link">Ranges</a>
-        <a href="#" class="nav-link">Scripts</a>
+        <a href="{% url 'script_list' %}" class="nav-link">Scripts</a>
         <a href="#" class="nav-link">Templates</a>
         {% endif %}
     </div>

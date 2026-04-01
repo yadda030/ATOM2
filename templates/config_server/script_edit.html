@@ -1,0 +1,151 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — {% if script %}Edit{% else %}New{% endif %} Script{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/scripts.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">{% if script %}Edit script{% else %}New script{% endif %}</div>
+        <div class="header-actions">
+            <a href="{% url 'script_list' %}" class="btn-outline">Cancel</a>
+            <button form="script-form" type="submit" class="btn-primary">Save script</button>
+        </div>
+    </div>
+
+    <form id="script-form" method="post">
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <!-- Row 1: Script info + Tags -->
+        <div class="top-row">
+            <div class="panel">
+                <div class="panel-header">Script info</div>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <label class="form-label">Script name</label>
+                        <input class="form-input" type="text" name="name" value="{{ form.name.value|default:'' }}" placeholder="e.g. Windows Domain Setup" required />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Type</label>
+                            <select class="form-input" name="script_type">
+                                {% for value, label in form.fields.script_type.choices %}
+                                <option value="{{ value }}" {% if form.script_type.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Visibility</label>
+                            <select class="form-input" name="is_public">
+                                <option value="False" {% if not form.is_public.value %}selected{% endif %}>Private</option>
+                                <option value="True" {% if form.is_public.value %}selected{% endif %}>Public</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <input class="form-input" type="text" name="description" value="{{ form.description.value|default:'' }}" placeholder="Brief description of what this script does" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Tags</div>
+                <div class="panel-body">
+                    <div class="tags-wrap" id="tags-wrap">
+                        {% if form.tags.value %}
+                            {% for tag in form.tags.value.split(',') %}
+                                {% if tag.strip %}
+                                <span class="tag">{{ tag.strip }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
+                                {% endif %}
+                            {% endfor %}
+                        {% endif %}
+                        <input class="tag-input" id="tag-input" placeholder="Add tag..." />
+                    </div>
+                    <input type="hidden" name="tags" id="tags-hidden" value="{{ form.tags.value|default:'' }}" />
+                    <div style="font-size: 11px; color: #b0bec8; margin-top: 6px;">Press enter to add</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Variables -->
+        <div class="panel" style="margin-bottom: 14px;">
+            <div class="panel-header">
+                <span>Variables</span>
+                <button type="button" class="btn-add-var" onclick="addVariable()">+ Add variable</button>
+            </div>
+            <div class="panel-body">
+                <table class="variables-table">
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Type</th>
+                            <th>Default value</th>
+                            <th>Description</th>
+                            <th>Required</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="variables-tbody">
+                        {% for var in system_vars %}
+                        <tr>
+                            <td><input class="variable-input" type="text" value="{{ var.key }}" readonly /></td>
+                            <td><span class="system-badge">system</span></td>
+                            <td><input class="variable-input" type="text" placeholder="—" disabled /></td>
+                            <td><input class="variable-input" type="text" value="Auto populated from deployment" readonly /></td>
+                            <td><span class="system-badge">auto</span></td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+
+                        {% for var_form in formset %}
+                        <tr class="variable-row">
+                            <td>
+                                <input class="variable-input" type="text" name="{{ var_form.key.html_name }}" value="{{ var_form.key.value|default:'' }}" placeholder="variable_name" />
+                                <input type="hidden" name="{{ var_form.DELETE.html_name }}" class="delete-field" value="" />
+                            </td>
+                            <td>
+                                <select class="variable-input" name="{{ var_form.variable_type.html_name }}">
+                                    {% for value, label in var_form.fields.variable_type.choices %}
+                                    <option value="{{ value }}" {% if var_form.variable_type.value == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input class="variable-input" type="text" name="{{ var_form.default_value.html_name }}" value="{{ var_form.default_value.value|default:'' }}" placeholder="Optional default" /></td>
+                            <td><input class="variable-input" type="text" name="{{ var_form.description.html_name }}" value="{{ var_form.description.value|default:'' }}" placeholder="What is this variable?" /></td>
+                            <td>
+                                <select class="variable-input" name="{{ var_form.required.html_name }}">
+                                    <option value="True" {% if var_form.required.value %}selected{% endif %}>Required</option>
+                                    <option value="False" {% if not var_form.required.value %}selected{% endif %}>Optional</option>
+                                </select>
+                            </td>
+                            <td><button type="button" class="btn-remove" onclick="removeVariable(this)">×</button></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Full width code editor -->
+        <div class="editor-card">
+            <div class="editor-toolbar">
+                <span class="editor-lang">bash</span>
+                <span class="editor-hint">Use {{ '{{' }} variable_name {{ '}}' }} for dynamic values</span>
+            </div>
+            <textarea class="code-area" name="content">{{ form.content.value|default:'' }}</textarea>
+        </div>
+
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/script_edit.js' %}"></script>
+{% endblock %}
