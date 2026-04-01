@@ -52,6 +52,8 @@ body {
 .nav-user {
     color: #8a9bb0;
     font-size: 14px;
+    border: #a8d4e8;
+    border-radius: 5px;
 }
 
 .nav-btn {

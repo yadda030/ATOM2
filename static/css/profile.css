@@ -1,0 +1,240 @@
+.page {
+    padding: 28px 2rem;
+    max-width: 900px;
+    margin: 0 auto;
+}
+
+.page-title {
+    font-size: 20px;
+    font-weight: 500;
+    color: #1a2535;
+    margin-bottom: 24px;
+}
+
+/* Alerts */
+.alert {
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 20px;
+    border: 0.5px solid;
+}
+
+.alert-success {
+    background: #eaf3de;
+    color: #3b6d11;
+    border-color: #c0dd97;
+}
+
+.alert-error {
+    background: #fcebeb;
+    color: #a32d2d;
+    border-color: #f7c1c1;
+}
+
+/* Profile grid */
+.profile-grid {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: 20px;
+}
+
+/* Sidebar */
+.profile-sidebar {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    padding: 24px;
+    text-align: center;
+    height: fit-content;
+}
+
+.avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: #1a2535;
+    color: #a8d4e8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    font-weight: 500;
+    margin: 0 auto 12px;
+}
+
+.profile-name {
+    font-size: 16px;
+    font-weight: 500;
+    color: #1a2535;
+    margin-bottom: 4px;
+}
+
+.profile-role {
+    font-size: 12px;
+    color: #8a9bb0;
+    margin-bottom: 16px;
+}
+
+.sidebar-divider {
+    border: none;
+    border-top: 0.5px solid #dce6ef;
+    margin: 16px 0;
+}
+
+.sidebar-stat {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    padding: 6px 0;
+}
+
+.sidebar-stat-label { color: #8a9bb0; }
+.sidebar-stat-value { color: #1a2535; font-weight: 500; }
+
+.status-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
+.dot-green { background: #639922; }
+.dot-gray { background: #888780; }
+.dot-red { background: #e24b4a; }
+.dot-warn { background: #ba7517; }
+
+.btn-change-password {
+    display: block;
+    text-align: center;
+    margin-top: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    color: #8a9bb0;
+    border: 0.5px solid #dce6ef;
+    border-radius: 6px;
+    font-size: 13px;
+    text-decoration: none;
+    transition: color 0.15s, border-color 0.15s;
+}
+
+.btn-change-password:hover {
+    color: #1a2535;
+    border-color: #b0bec8;
+}
+
+/* Cards */
+.profile-card {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    margin-bottom: 16px;
+    overflow: hidden;
+}
+
+.card-header {
+    padding: 14px 20px;
+    border-bottom: 0.5px solid #dce6ef;
+    font-size: 13px;
+    font-weight: 500;
+    color: #8a9bb0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.card-body { padding: 20px; }
+
+/* Forms */
+.form-group { margin-bottom: 16px; }
+
+.form-label {
+    font-size: 12px;
+    color: #8a9bb0;
+    margin-bottom: 6px;
+    display: block;
+    letter-spacing: 0.3px;
+}
+
+.form-input {
+    width: 100%;
+    padding: 9px 12px;
+    background: #f5f8fb;
+    border: 0.5px solid #dce6ef;
+    border-radius: 6px;
+    color: #1a2535;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.15s;
+}
+
+.form-input:focus { border-color: #a8d4e8; }
+
+.form-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.form-error {
+    background: #fcebeb;
+    border: 0.5px solid #f7c1c1;
+    border-radius: 6px;
+    color: #a32d2d;
+    font-size: 13px;
+    padding: 8px 12px;
+    margin-bottom: 14px;
+}
+
+/* Buttons */
+.btn-save {
+    background: #1a2535;
+    color: #a8d4e8;
+    border: none;
+    border-radius: 6px;
+    padding: 9px 24px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: background 0.15s;
+}
+
+.btn-save:hover { background: #243347; }
+
+.btn-cancel {
+    color: #8a9bb0;
+    font-size: 14px;
+    text-decoration: none;
+}
+
+.btn-cancel:hover { color: #1a2535; }
+
+/* Connection bar */
+.connection-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 16px;
+    border: 0.5px solid;
+}
+
+.connection-ok {
+    background: #eaf3de;
+    color: #3b6d11;
+    border-color: #c0dd97;
+}
+
+.connection-warn {
+    background: #faeeda;
+    color: #854f0b;
+    border-color: #fac775;
+}
+
+.connection-error {
+    background: #fcebeb;
+    color: #a32d2d;
+    border-color: #f7c1c1;
+}
