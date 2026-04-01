@@ -197,3 +197,57 @@
     color: #378add;
     text-decoration: none;
 }
+
+/* Connection status bar */
+.connection-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 24px;
+    border: 0.5px solid;
+}
+
+.connection-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.connection-ok {
+    background: #eaf3de;
+    color: #3b6d11;
+    border-color: #c0dd97;
+}
+
+.connection-ok .connection-dot {
+    background: #639922;
+}
+
+.connection-warn {
+    background: #faeeda;
+    color: #854f0b;
+    border-color: #fac775;
+}
+
+.connection-warn .connection-dot {
+    background: #ba7517;
+}
+
+.connection-warn a {
+    color: #854f0b;
+    font-weight: 500;
+}
+
+.connection-error {
+    background: #fcebeb;
+    color: #a32d2d;
+    border-color: #f7c1c1;
+}
+
+.connection-error .connection-dot {
+    background: #e24b4a;
+}

@@ -15,6 +15,20 @@ def get_proxmox_connection(user):
 
     return proxmox
 
+def test_connection(user):
+    """
+    Test if the user's Proxmox credentials are valid.
+    Returns a dict with status and message.
+    """
+    try:
+        if not user.has_proxmox_credentials():
+            return {'status': 'unconfigured', 'message': 'No credentials configured'}
+        
+        proxmox = get_proxmox_connection(user)
+        proxmox.nodes.get()
+        return {'status': 'connected', 'message': 'Connected to Proxmox'}
+    except Exception as e:
+        return {'status': 'error', 'message': str(e)}
 
 # --- Nodes ---
 

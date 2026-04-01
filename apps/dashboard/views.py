@@ -12,29 +12,31 @@ def landing(request):
         return redirect('dashboard')
     return render(request, 'landing.html')
 
+from apps.proxmox.services import get_nodes, get_node_status, test_connection
 
 @login_required
 def dashboard(request):
     user = request.user
 
-    # Active deployments with their VMs
     deployments = RangeDeployment.objects.filter(
         user=user
     ).prefetch_related('vms').order_by('-created_at')
 
-    # Recent activity
     activity = ActivityLog.objects.filter(
         user=user
     ).order_by('-created_at')[:10]
 
-    # Proxmox cluster stats
+    # Test Proxmox connection
+    connection = test_connection(user)
+
     cluster_stats = {
         'nodes': [],
         'total_vms': 0,
         'nodes_online': 0,
+        'total_nodes': 0,
     }
 
-    if user.has_proxmox_credentials():
+    if connection['status'] == 'connected':
         try:
             nodes = get_nodes(user)
             for node in nodes:
@@ -52,12 +54,11 @@ def dashboard(request):
                 except Exception:
                     pass
 
+            cluster_stats['total_nodes'] = len(nodes)
             cluster_stats['total_vms'] = sum(
                 deployment.vms.filter(status='running').count()
                 for deployment in deployments
             )
-            cluster_stats['total_nodes'] = len(nodes)
-
         except Exception:
             pass
 
@@ -65,6 +66,7 @@ def dashboard(request):
         'deployments': deployments,
         'activity': activity,
         'cluster_stats': cluster_stats,
+        'connection': connection,
     }
 
     return render(request, 'dashboard/dashboard.html', context)
