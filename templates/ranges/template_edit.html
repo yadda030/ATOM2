@@ -1,0 +1,369 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — {% if template %}Edit{% else %}New{% endif %} Template{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">{% if template %}Edit template{% else %}New range template{% endif %}</div>
+        <div class="header-actions">
+            <a href="{% url 'template_list' %}" class="btn-outline">Cancel</a>
+            <button onclick="saveTemplate()" class="btn-primary">Save template</button>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form id="template-form" method="post">
+        {% csrf_token %}
+        <input type="hidden" name="networks_data" id="networks_data" value="[]" />
+        <input type="hidden" name="vms_data" id="vms_data" value="[]" />
+
+        <!-- Template info -->
+        <div class="panel">
+            <div class="panel-header">Template info</div>
+            <div class="panel-body">
+                <div class="form-row" style="margin-bottom: 14px;">
+                    <div class="form-group">
+                        <label class="form-label">Template name <span class="required">*</span></label>
+                        <input class="form-input" type="text" name="name" value="{{ form.name.value|default:'' }}" placeholder="e.g. Windows AD Lab" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Visibility</label>
+                        <select class="form-input" name="is_public">
+                            <option value="False" {% if not form.is_public.value %}selected{% endif %}>Private</option>
+                            <option value="True" {% if form.is_public.value %}selected{% endif %}>Public</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <input class="form-input" type="text" name="description" value="{{ form.description.value|default:'' }}" placeholder="Brief description of this range" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tags</label>
+                        <div class="tags-wrap" id="tags-wrap">
+                            {% if form.tags.value %}
+                                {% for tag in form.tags.value %}
+                                <span class="tag">{{ tag }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
+                                {% endfor %}
+                            {% endif %}
+                            <input class="tag-input" id="tag-input" placeholder="Add tag..." />
+                        </div>
+                        <input type="hidden" name="tags" id="tags-hidden" value="{{ form.tags.value|default:'' }}" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('networks')">Networks <span class="tab-count" id="network-count">0</span></div>
+            <div class="tab" onclick="showTab('vms')">Virtual machines <span class="tab-count" id="vm-count">0</span></div>
+        </div>
+
+        <!-- Networks tab -->
+        <div class="tab-content" id="tab-networks">
+            <div id="networks-container"></div>
+            <button type="button" class="btn-add" onclick="addNetwork()">+ Add network</button>
+        </div>
+
+        <!-- VMs tab -->
+        <div class="tab-content" id="tab-vms" style="display:none;">
+            <div id="vms-container"></div>
+            <button type="button" class="btn-add" onclick="addVM()">+ Add VM</button>
+        </div>
+
+    </form>
+</div>
+{% endblock %}
+
+
+{% block extra_scripts %}
+const PROXMOX_NODES = {{ proxmox_nodes|safe }};
+const PROXMOX_TEMPLATES = {{ proxmox_templates|safe }};
+const PROXMOX_SDN_ZONES = {{ proxmox_sdn_zones|safe }};
+const PROXMOX_SDN_VNETS = {{ proxmox_sdn_vnets|safe }};
+const SCRIPTS = [
+    {% for script in scripts %}
+    { id: {{ script.pk }}, name: "{{ script.name }}" },
+    {% endfor %}
+];
+
+let networks = {{ networks_json|safe }};
+let vms = {{ vms_json|safe }};
+
+{% load static %}
+<script>
+
+// Render on load
+document.addEventListener('DOMContentLoaded', function() {
+    networks.forEach((n, i) => renderNetwork(i, n));
+    vms.forEach((v, i) => renderVM(i, v));
+    updateCounts();
+});
+
+function showTab(tab) {
+    document.getElementById('tab-networks').style.display = tab === 'networks' ? 'block' : 'none';
+    document.getElementById('tab-vms').style.display = tab === 'vms' ? 'block' : 'none';
+    document.querySelectorAll('.tab').forEach((t, i) => {
+        t.classList.toggle('active', (tab === 'networks' && i === 0) || (tab === 'vms' && i === 1));
+    });
+}
+
+function updateCounts() {
+    document.getElementById('network-count').textContent = networks.length;
+    document.getElementById('vm-count').textContent = vms.length;
+}
+
+// --- Networks ---
+function addNetwork() {
+    const idx = networks.length;
+    networks.push({ name: '', sdn_zone: '', sdn_vnet: '', subnet: '', gateway: '', auto_assign_ips: true });
+    renderNetwork(idx, networks[idx]);
+    updateCounts();
+}
+
+function renderNetwork(idx, data) {
+    const container = document.getElementById('networks-container');
+    const div = document.createElement('div');
+    div.className = 'network-card';
+    div.id = `network-${idx}`;
+
+    const zoneOptions = PROXMOX_SDN_ZONES.map(z =>
+        `<option value="${z.zone}" ${data.sdn_zone === z.zone ? 'selected' : ''}>${z.zone}</option>`
+    ).join('');
+
+    const vnetOptions = PROXMOX_SDN_VNETS.map(v =>
+        `<option value="${v.vnet}" ${data.sdn_vnet === v.vnet ? 'selected' : ''}>${v.vnet}</option>`
+    ).join('');
+
+    div.innerHTML = `
+        <div class="network-card-header">
+            <input class="card-name-input" type="text" placeholder="Network name e.g. LAN" value="${data.name || ''}" onchange="updateNetwork(${idx}, 'name', this.value)" />
+            <button type="button" class="btn-remove-sm" onclick="removeNetwork(${idx})">Remove</button>
+        </div>
+        <div class="source-toggle">
+            <button type="button" class="source-btn ${data.source !== 'manual' ? 'active' : ''}" onclick="setNetworkSource(${idx}, 'proxmox', this)">From Proxmox</button>
+            <button type="button" class="source-btn ${data.source === 'manual' ? 'active' : ''}" onclick="setNetworkSource(${idx}, 'manual', this)">Manual</button>
+        </div>
+        <div class="proxmox-fields-${idx}">
+            <div class="form-row-3">
+                <div class="form-group">
+                    <label class="form-label">SDN Zone <span class="optional">(optional)</span></label>
+                    ${PROXMOX_SDN_ZONES.length > 0
+                        ? `<select class="form-input" onchange="updateNetwork(${idx}, 'sdn_zone', this.value)">${zoneOptions}</select>`
+                        : `<input class="form-input" type="text" placeholder="zone-name" value="${data.sdn_zone || ''}" onchange="updateNetwork(${idx}, 'sdn_zone', this.value)" />`
+                    }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">VNet <span class="optional">(optional)</span></label>
+                    ${PROXMOX_SDN_VNETS.length > 0
+                        ? `<select class="form-input" onchange="updateNetwork(${idx}, 'sdn_vnet', this.value)">${vnetOptions}</select>`
+                        : `<input class="form-input" type="text" placeholder="vnet-name" value="${data.sdn_vnet || ''}" onchange="updateNetwork(${idx}, 'sdn_vnet', this.value)" />`
+                    }
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Subnet <span class="optional">(optional)</span></label>
+                    <input class="form-input" type="text" placeholder="e.g. 10.10.1.0/24" value="${data.subnet || ''}" onchange="updateNetwork(${idx}, 'subnet', this.value)" />
+                </div>
+            </div>
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">Gateway <span class="optional">(optional)</span></label>
+                    <input class="form-input" type="text" placeholder="e.g. 10.10.1.1" value="${data.gateway || ''}" onchange="updateNetwork(${idx}, 'gateway', this.value)" />
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Auto assign IPs</label>
+                    <select class="form-input" onchange="updateNetwork(${idx}, 'auto_assign_ips', this.value === 'true')">
+                        <option value="true" ${data.auto_assign_ips !== false ? 'selected' : ''}>Yes</option>
+                        <option value="false" ${data.auto_assign_ips === false ? 'selected' : ''}>No</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+function updateNetwork(idx, key, value) {
+    networks[idx][key] = value;
+}
+
+function removeNetwork(idx) {
+    networks.splice(idx, 1);
+    document.getElementById(`network-${idx}`).remove();
+    updateCounts();
+}
+
+function setNetworkSource(idx, source, btn) {
+    networks[idx].source = source;
+    btn.closest('.source-toggle').querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+// --- VMs ---
+function addVM() {
+    const idx = vms.length;
+    vms.push({ name: '', proxmox_template_id: '', node: '', cores: 2, memory: 2048, config_script: null, notes: '' });
+    renderVM(idx, vms[idx]);
+    updateCounts();
+}
+
+function renderVM(idx, data) {
+    const container = document.getElementById('vms-container');
+    const div = document.createElement('div');
+    div.className = 'vm-card';
+    div.id = `vm-${idx}`;
+
+    const nodeOptions = PROXMOX_NODES.map(n =>
+        `<option value="${n}" ${data.node === n ? 'selected' : ''}>${n}</option>`
+    ).join('');
+
+    const templateOptions = data.node && PROXMOX_TEMPLATES[data.node]
+        ? PROXMOX_TEMPLATES[data.node].map(t =>
+            `<option value="${t.vmid}" ${data.proxmox_template_id == t.vmid ? 'selected' : ''}>${t.name} (VMID ${t.vmid})</option>`
+          ).join('')
+        : `<option value="${data.proxmox_template_id || ''}">${data.proxmox_template_id || 'Select node first'}</option>`;
+
+    const networkOptions = networks.map((n, i) =>
+        `<option value="${i}" ${data.network_idx == i ? 'selected' : ''}>${n.name || `Network ${i+1}`}</option>`
+    ).join('');
+
+    const scriptOptions = SCRIPTS.map(s =>
+        `<option value="${s.id}" ${data.config_script_id == s.id ? 'selected' : ''}>${s.name}</option>`
+    ).join('');
+
+    div.innerHTML = `
+        <div class="vm-card-header">
+            <input class="card-name-input" type="text" placeholder="VM name e.g. Domain Controller" value="${data.name || ''}" onchange="updateVM(${idx}, 'name', this.value)" />
+            <button type="button" class="btn-remove-sm" onclick="removeVM(${idx})">Remove</button>
+        </div>
+        <div class="source-toggle">
+            <button type="button" class="source-btn ${data.source !== 'manual' ? 'active' : ''}" onclick="setVMSource(${idx}, 'proxmox', this)">From Proxmox</button>
+            <button type="button" class="source-btn ${data.source === 'manual' ? 'active' : ''}" onclick="setVMSource(${idx}, 'manual', this)">Manual</button>
+        </div>
+        <div class="form-row-3" style="margin-bottom:12px;">
+            <div class="form-group">
+                <label class="form-label">Node <span class="required">*</span></label>
+                ${PROXMOX_NODES.length > 0
+                    ? `<select class="form-input" onchange="updateVM(${idx}, 'node', this.value); updateTemplateOptions(${idx}, this.value)">
+                        <option value="">Select node</option>${nodeOptions}
+                       </select>`
+                    : `<input class="form-input" type="text" placeholder="e.g. pve-node1" value="${data.node || ''}" onchange="updateVM(${idx}, 'node', this.value)" />`
+                }
+            </div>
+            <div class="form-group">
+                <label class="form-label">Proxmox template <span class="required">*</span></label>
+                <select class="form-input" id="template-select-${idx}" onchange="updateVM(${idx}, 'proxmox_template_id', this.value)">
+                    <option value="">Select template</option>${templateOptions}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Network <span class="optional">(optional)</span></label>
+                <select class="form-input" onchange="updateVM(${idx}, 'network_idx', this.value)">
+                    <option value="">None</option>${networkOptions}
+                </select>
+            </div>
+        </div>
+        <div class="form-row" style="margin-bottom:12px;">
+            <div class="form-group">
+                <label class="form-label">CPU cores <span class="optional">(optional)</span></label>
+                <input class="form-input" type="number" min="1" value="${data.cores || 2}" onchange="updateVM(${idx}, 'cores', this.value)" />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Memory MB <span class="optional">(optional)</span></label>
+                <input class="form-input" type="number" min="512" value="${data.memory || 2048}" onchange="updateVM(${idx}, 'memory', this.value)" />
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Config script <span class="optional">(optional)</span></label>
+            <select class="form-input" onchange="updateVM(${idx}, 'config_script_id', this.value)">
+                <option value="">No script</option>${scriptOptions}
+            </select>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Notes <span class="optional">(optional)</span></label>
+            <input class="form-input" type="text" placeholder="Any notes about this VM" value="${data.notes || ''}" onchange="updateVM(${idx}, 'notes', this.value)" />
+        </div>
+    `;
+    container.appendChild(div);
+}
+
+function updateVM(idx, key, value) {
+    vms[idx][key] = value;
+}
+
+function removeVM(idx) {
+    vms.splice(idx, 1);
+    document.getElementById(`vm-${idx}`).remove();
+    updateCounts();
+}
+
+function setVMSource(idx, source, btn) {
+    vms[idx].source = source;
+    btn.closest('.source-toggle').querySelectorAll('.source-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function updateTemplateOptions(idx, node) {
+    const select = document.getElementById(`template-select-${idx}`);
+    if (!select) return;
+    const templates = PROXMOX_TEMPLATES[node] || [];
+    select.innerHTML = `<option value="">Select template</option>` +
+        templates.map(t => `<option value="${t.vmid}">${t.name} (VMID ${t.vmid})</option>`).join('');
+}
+
+// --- Tags ---
+const tagsHidden = document.getElementById('tags-hidden');
+const tagsWrap = document.getElementById('tags-wrap');
+const tagInput = document.getElementById('tag-input');
+
+tagInput.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        const value = tagInput.value.trim();
+        if (value) {
+            addTag(value);
+            tagInput.value = '';
+            updateTagsHidden();
+        }
+    }
+});
+
+function addTag(name) {
+    const span = document.createElement('span');
+    span.className = 'tag';
+    span.innerHTML = `${name} <span class="tag-remove" onclick="removeTag(this)">×</span>`;
+    tagsWrap.insertBefore(span, tagInput);
+}
+
+function removeTag(el) {
+    el.parentElement.remove();
+    updateTagsHidden();
+}
+
+function updateTagsHidden() {
+    const tags = [...tagsWrap.querySelectorAll('.tag')]
+        .map(t => t.childNodes[0].textContent.trim());
+    tagsHidden.value = tags.join(',');
+}
+
+// --- Save ---
+function saveTemplate() {
+    document.getElementById('networks_data').value = JSON.stringify(networks);
+    document.getElementById('vms_data').value = JSON.stringify(vms);
+    document.getElementById('template-form').submit();
+}
+</script>
+{% endblock %}
