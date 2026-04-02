@@ -79,3 +79,22 @@ function removeVariable(btn) {
         row.remove();
     }
 }
+
+function toggleGuide() {
+    const guidePanel = document.getElementById('guide-panel');
+    const editorRow = document.getElementById('editor-row');
+    const toggle = document.getElementById('guide-toggle');
+    const guideTitle = document.getElementById('guide-title');
+
+    if (guidePanel.classList.contains('collapsed')) {
+        guidePanel.classList.remove('collapsed');
+        editorRow.style.gridTemplateColumns = '1fr 260px';
+        toggle.textContent = '▶';
+        guideTitle.style.display = 'block';
+    } else {
+        guidePanel.classList.add('collapsed');
+        editorRow.style.gridTemplateColumns = '1fr 36px';
+        toggle.textContent = '◀';
+        guideTitle.style.display = 'none';
+    }
+}

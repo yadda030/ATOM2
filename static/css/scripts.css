@@ -398,3 +398,124 @@
     outline: none;
     display: block;
 }
+
+/* Editor + guide row */
+.editor-row {
+    display: grid;
+    grid-template-columns: 1fr 260px;
+    gap: 14px;
+    align-items: start;
+}
+
+/* Guide panel */
+.guide-panel {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    overflow: hidden;
+    height: fit-content;
+}
+
+.guide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 0.5px solid #dce6ef;
+    font-size: 12px;
+    font-weight: 500;
+    color: #8a9bb0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    user-select: none;
+}
+
+.guide-toggle { color: #a8d4e8; font-size: 14px; }
+
+.guide-body { padding: 14px 16px; }
+
+.guide-section { margin-bottom: 16px; }
+.guide-section:last-child { margin-bottom: 0; }
+
+.guide-section-title {
+    font-size: 11px;
+    font-weight: 500;
+    color: #1a2535;
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+}
+
+.guide-item { margin-bottom: 8px; }
+
+.guide-code {
+    display: inline-block;
+    background: #111c2a;
+    color: #a8d4e8;
+    font-family: monospace;
+    font-size: 11px;
+    padding: 2px 6px;
+    border-radius: 4px;
+    margin-bottom: 3px;
+}
+
+.guide-desc { font-size: 12px; color: #8a9bb0; line-height: 1.5; }
+
+.guide-divider {
+    border: none;
+    border-top: 0.5px solid #dce6ef;
+    margin: 12px 0;
+}
+
+.guide-panel {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    overflow: hidden;
+    height: fit-content;
+    transition: all 0.2s ease;
+}
+
+.guide-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    border-bottom: 0.5px solid #dce6ef;
+    font-size: 12px;
+    font-weight: 500;
+    color: #8a9bb0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+    user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
+}
+
+.guide-panel.collapsed .guide-header {
+    justify-content: center;
+    padding: 10px;
+    border-bottom: none;
+}
+
+.guide-panel.collapsed .guide-title {
+    display: none;
+}
+
+.guide-panel.collapsed .guide-body {
+    display: none;
+}
+
+.guide-toggle {
+    color: #a8d4e8;
+    font-size: 14px;
+    flex-shrink: 0;
+}
+
+.guide-panel.collapsed .guide-header {
+    justify-content: center;
+    padding: 10px 0;
+    border-bottom: none;
+    width: 36px;
+}

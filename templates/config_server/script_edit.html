@@ -59,10 +59,8 @@
                 <div class="panel-body">
                     <div class="tags-wrap" id="tags-wrap">
                         {% if form.tags.value %}
-                            {% for tag in form.tags.value.split(',') %}
-                                {% if tag.strip %}
-                                <span class="tag">{{ tag.strip }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
-                                {% endif %}
+                            {% for tag in form.tags.value %}
+                                <span class="tag">{{ tag }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
                             {% endfor %}
                         {% endif %}
                         <input class="tag-input" id="tag-input" placeholder="Add tag..." />
@@ -132,13 +130,73 @@
             </div>
         </div>
 
-        <!-- Full width code editor -->
-        <div class="editor-card">
-            <div class="editor-toolbar">
-                <span class="editor-lang">bash</span>
-                <span class="editor-hint">Use {{ '{{' }} variable_name {{ '}}' }} for dynamic values</span>
+        <!-- Editor + Guide -->
+        <div class="editor-row" id="editor-row">
+
+            <div class="editor-card">
+                <div class="editor-toolbar">
+                    <span class="editor-lang">bash / powershell</span>
+                    <span class="editor-hint">Use {% templatetag openvariable %} variable_name {% templatetag closevariable %} for dynamic values</span>
+                </div>
+                <textarea class="code-area" name="content">{{ form.content.value|default:'' }}</textarea>
             </div>
-            <textarea class="code-area" name="content">{{ form.content.value|default:'' }}</textarea>
+
+            <div class="guide-panel" id="guide-panel">
+                <div class="guide-header" onclick="toggleGuide()">
+                    <span class="guide-title" id="guide-title">Syntax guide</span>
+                    <span class="guide-toggle" id="guide-toggle">▶</span>
+                </div>
+                <div class="guide-body" id="guide-body">
+
+                    <div class="guide-section">
+                        <div class="guide-section-title">Using variables</div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} variable_name {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Insert a variable value. Must be defined in the variables table above.</div>
+                        </div>
+                    </div>
+
+                    <hr class="guide-divider">
+
+                    <div class="guide-section">
+                        <div class="guide-section-title">System variables</div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} hostname {% templatetag closevariable %}</div>
+                            <div class="guide-desc">VM hostname</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} ip_address {% templatetag closevariable %}</div>
+                            <div class="guide-desc">VM IP address</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} node {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Proxmox node name</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} cores {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Number of CPU cores</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} memory {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Memory in MB</div>
+                        </div>
+                    </div>
+
+                    <hr class="guide-divider">
+
+                    <div class="guide-section">
+                        <div class="guide-section-title">Tips</div>
+                        <div class="guide-desc" style="line-height: 1.7;">
+                            • Variables are case sensitive<br>
+                            • Use underscores for multi-word keys<br>
+                            • Works with bash, PowerShell, Python<br>
+                            • Script is rendered server side before being sent to the VM<br>
+                            • Leave default values blank if the variable must always be set at deploy time
+                        </div>
+                    </div>
+
+                </div>
+            </div>
         </div>
 
     </form>
