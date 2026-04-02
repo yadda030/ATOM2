@@ -8,7 +8,7 @@ class ScriptForm(forms.ModelForm):
 
     class Meta:
         model = Script
-        fields = ['name', 'description', 'script_type', 'content', 'is_public']
+        fields = ['name', 'description', 'script_type', 'content', 'visibility']
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

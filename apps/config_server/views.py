@@ -18,15 +18,16 @@ def serve_script(request, mac_address):
     except MachineConfig.DoesNotExist:
         raise Http404
 
-
 @login_required
 def script_list(request):
     script_type = request.GET.get('type', '')
     search = request.GET.get('search', '')
 
     scripts = Script.objects.filter(
-        is_public=True
-    ) | Script.objects.filter(created_by=request.user)
+        created_by=request.user
+    ) | Script.objects.filter(
+        visibility__in=('public_view', 'public_edit')
+    )
 
     scripts = scripts.distinct()
 
@@ -37,6 +38,10 @@ def script_list(request):
 
     scripts = scripts.prefetch_related('tags', 'variables').order_by('-created_at')
 
+    # Annotate each script with edit permission
+    for script in scripts:
+        script.can_edit = script.is_editable_by(request.user)
+
     context = {
         'scripts': scripts,
         'script_type': script_type,
@@ -44,17 +49,25 @@ def script_list(request):
     }
     return render(request, 'config_server/script_list.html', context)
 
-
 @login_required
 def script_edit(request, pk=None):
     if pk:
         script = get_object_or_404(Script, pk=pk)
+        if not script.is_visible_to(request.user):
+            messages.error(request, 'You do not have permission to view this script.')
+            return redirect('script_list')
+        can_edit = script.is_editable_by(request.user)
     else:
         script = None
+        can_edit = True
 
     ScriptVariableFormSet = formset_factory(ScriptVariableForm, extra=0, can_delete=True)
 
     if request.method == 'POST':
+        if not can_edit:
+            messages.error(request, 'You do not have permission to edit this script.')
+            return redirect('script_list')
+
         form = ScriptForm(request.POST, instance=script)
         formset = ScriptVariableFormSet(request.POST, prefix='variables')
 
@@ -65,7 +78,6 @@ def script_edit(request, pk=None):
             instance.save()
             form.save_m2m()
 
-            # Save variables
             ScriptVariable.objects.filter(script=instance, is_system=False).delete()
             for var_form in formset:
                 if var_form.cleaned_data and not var_form.cleaned_data.get('DELETE'):
@@ -94,13 +106,16 @@ def script_edit(request, pk=None):
         'formset': formset,
         'script': script,
         'system_vars': system_vars,
+        'can_edit': can_edit,
     }
     return render(request, 'config_server/script_edit.html', context)
 
-
 @login_required
 def script_delete(request, pk):
-    script = get_object_or_404(Script, pk=pk, created_by=request.user)
+    script = get_object_or_404(Script, pk=pk)
+    if not script.is_editable_by(request.user):
+        messages.error(request, 'You do not have permission to delete this script.')
+        return redirect('script_list')
     if request.method == 'POST':
         script.delete()
         messages.success(request, 'Script deleted.')

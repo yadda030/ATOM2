@@ -519,3 +519,46 @@
     border-bottom: none;
     width: 36px;
 }
+
+/* View only mode */
+.form-readonly {
+    pointer-events: none;
+}
+
+.form-readonly .form-input {
+    background: #f0f4f8;
+    color: #8a9bb0;
+    border-color: #e8eef4;
+}
+
+.form-readonly .code-area {
+    background: #0e1620;
+    color: #7a9bb0;
+}
+
+.form-readonly .variable-input {
+    background: #f0f4f8;
+    color: #8a9bb0;
+    border-color: #e8eef4;
+}
+
+.form-readonly .tag {
+    background: #f0f4f8;
+    color: #8a9bb0;
+}
+
+.form-readonly .tag-remove {
+    display: none;
+}
+
+.form-readonly .btn-add-var {
+    display: none;
+}
+
+.form-readonly .btn-remove {
+    display: none;
+}
+
+.form-readonly .guide-header {
+    pointer-events: all;
+}

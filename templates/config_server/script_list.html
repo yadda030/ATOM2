@@ -49,12 +49,14 @@
                 <div class="script-meta">{{ script.variables.count }} variable{{ script.variables.count|pluralize }}</div>
             </div>
             <div class="script-actions">
+                {% if script.can_edit %}
                 <a href="{% url 'script_edit' script.pk %}" class="btn-sm btn-edit">Edit</a>
-                {% if script.created_by == request.user %}
                 <form method="post" action="{% url 'script_delete' script.pk %}" style="display:inline;">
                     {% csrf_token %}
                     <button type="submit" class="btn-sm btn-delete" onclick="return confirm('Delete this script?')">Delete</button>
                 </form>
+                {% else %}
+                <a href="{% url 'script_edit' script.pk %}" class="btn-sm btn-edit">View</a>
                 {% endif %}
             </div>
         </div>

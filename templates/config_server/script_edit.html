@@ -10,14 +10,24 @@
 {% block content %}
 <div class="page">
     <div class="page-header">
-        <div class="page-title">{% if script %}Edit script{% else %}New script{% endif %}</div>
+        <div class="page-title">
+            {% if script %}
+                {% if can_edit %}Edit script{% else %}View script{% endif %}
+            {% else %}
+                New script
+            {% endif %}
+        </div>
         <div class="header-actions">
-            <a href="{% url 'script_list' %}" class="btn-outline">Cancel</a>
+            <a href="{% url 'script_list' %}" class="btn-outline">
+                {% if can_edit %}Cancel{% else %}Back{% endif %}
+            </a>
+            {% if can_edit %}
             <button form="script-form" type="submit" class="btn-primary">Save script</button>
+            {% endif %}
         </div>
     </div>
 
-    <form id="script-form" method="post">
+    <form id="script-form" method="post" {% if not can_edit %}class="form-readonly"{% endif %}>
         {% csrf_token %}
         {{ formset.management_form }}
 
@@ -41,9 +51,10 @@
                         </div>
                         <div class="form-group">
                             <label class="form-label">Visibility</label>
-                            <select class="form-input" name="is_public">
-                                <option value="False" {% if not form.is_public.value %}selected{% endif %}>Private</option>
-                                <option value="True" {% if form.is_public.value %}selected{% endif %}>Public</option>
+                            <select class="form-input" name="visibility">
+                                <option value="private" {% if form.visibility.value == 'private' %}selected{% endif %}>Private</option>
+                                <option value="public_view" {% if form.visibility.value == 'public_view' %}selected{% endif %}>Public — view only</option>
+                                <option value="public_edit" {% if form.visibility.value == 'public_edit' %}selected{% endif %}>Public — editable</option>
                             </select>
                         </div>
                     </div>
