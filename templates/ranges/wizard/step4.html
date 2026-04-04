@@ -1,0 +1,72 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Review Template{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">{{ template.name }}</div>
+        <a href="{% url 'template_list' %}" class="btn-outline">Cancel</a>
+    </div>
+
+    {% include 'ranges/wizard/wizard_steps.html' %}
+
+    <!-- Review -->
+    <div class="panel">
+        <div class="panel-header">Template info</div>
+        <div class="panel-body">
+            <div class="review-section">
+                <div class="review-item"><strong>Name:</strong> {{ template.name }}</div>
+                <div class="review-item"><strong>Description:</strong> {{ template.description|default:"—" }}</div>
+                <div class="review-item"><strong>Visibility:</strong> {% if template.is_public %}Public{% else %}Private{% endif %}</div>
+                <div class="review-item">
+                    <strong>Tags:</strong>
+                    {% for tag in template.tags.all %}{{ tag.name }}{% if not forloop.last %}, {% endif %}{% empty %}—{% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">Networks ({{ networks.count }})</div>
+        <div class="panel-body">
+            {% for network in networks %}
+            <div class="review-item">
+                <strong>{{ network.name }}</strong>
+                {% if network.subnet %} — {{ network.subnet }}{% endif %}
+                {% if network.proxmox_sdn_vnet %} · {{ network.proxmox_sdn_vnet }}{% endif %}
+            </div>
+            {% empty %}
+            <div style="color:#8a9bb0; font-size:13px;">No networks configured.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="panel">
+        <div class="panel-header">Virtual machines ({{ vms.count }})</div>
+        <div class="panel-body">
+            {% for vm in vms %}
+            <div class="review-item">
+                <strong>{{ vm.name }}</strong> — {{ vm.node }} · VMID {{ vm.proxmox_template_id }} · {{ vm.cores }} cores · {{ vm.memory }}MB
+                {% if vm.config_script %} · {{ vm.config_script.name }}{% endif %}
+            </div>
+            {% empty %}
+            <div style="color:#8a9bb0; font-size:13px;">No VMs configured.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <div class="wizard-actions">
+        <a href="{% url 'template_step3' template.pk %}" class="btn-outline">← Back</a>
+        <form method="post" style="display:inline;">
+            {% csrf_token %}
+            <button type="submit" class="btn-primary">Finish →</button>
+        </form>
+    </div>
+</div>
+{% endblock %}

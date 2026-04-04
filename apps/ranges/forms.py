@@ -3,7 +3,7 @@ from .models import RangeTemplate, RangeTemplateNetwork, VMTemplate
 
 
 class RangeTemplateForm(forms.ModelForm):
-    tags = forms.CharField(required=False, help_text="Comma separated tags")
+    tags = forms.CharField(required=False)
 
     class Meta:
         model = RangeTemplate
@@ -36,12 +36,23 @@ class RangeTemplateNetworkForm(forms.ModelForm):
     class Meta:
         model = RangeTemplateNetwork
         fields = ['name', 'proxmox_sdn_zone', 'proxmox_sdn_vnet', 'subnet', 'gateway', 'auto_assign_ips']
-        widgets = {
-            'auto_assign_ips': forms.Select(choices=[(True, 'Yes'), (False, 'No')])
-        }
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['proxmox_sdn_zone'].required = False
+        self.fields['proxmox_sdn_vnet'].required = False
+        self.fields['subnet'].required = False
+        self.fields['gateway'].required = False
 
 
 class VMTemplateForm(forms.ModelForm):
     class Meta:
         model = VMTemplate
         fields = ['name', 'proxmox_template_id', 'node', 'cores', 'memory', 'config_script', 'notes']
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.fields['cores'].required = False
+        self.fields['memory'].required = False
+        self.fields['config_script'].required = False
+        self.fields['notes'].required = False

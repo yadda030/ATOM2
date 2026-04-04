@@ -1,0 +1,138 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Template VMs{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">{{ template.name }}</div>
+        <a href="{% url 'template_list' %}" class="btn-outline">Cancel</a>
+    </div>
+
+    {% include 'ranges/wizard/wizard_steps.html' %}
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="panel">
+        <div class="panel-header">
+            <span>Virtual machines</span>
+            <span class="optional-label">Optional</span>
+        </div>
+        <div class="panel-body">
+            <p class="step-hint">Add VMs to your range template. Each VM will be cloned from a Proxmox template when the range is deployed.</p>
+
+            <!-- Saved VMs -->
+            {% for vm in vms %}
+            <div class="saved-item">
+                <div>
+                    <div class="saved-item-name">{{ vm.name }}</div>
+                    <div class="saved-item-meta">
+                        {{ vm.node }} · VMID {{ vm.proxmox_template_id }} · {{ vm.cores }} cores · {{ vm.memory }}MB
+                        {% if vm.config_script %} · {{ vm.config_script.name }}{% endif %}
+                    </div>
+                </div>
+                <div class="saved-item-actions">
+                    <form method="post" action="{% url 'vm_template_delete' template.pk vm.pk %}" style="display:inline;">
+                        {% csrf_token %}
+                        <button type="submit" class="btn-delete-sm" onclick="return confirm('Remove this VM?')">Remove</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+
+            <!-- Add VM form -->
+            <div class="add-form" id="add-vm-form" style="display:none;">
+                <div class="add-form-title">Add VM</div>
+                <form method="post">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">VM name <span class="required">*</span></label>
+                            <input class="form-input" type="text" name="name"
+                                placeholder="e.g. Domain Controller" required />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Node <span class="required">*</span></label>
+                            <select class="form-input" name="node" id="node-select" required>
+                                <option value="">Select node</option>
+                                {% for node in proxmox_nodes_json|default:'[]' %}
+                                <option value="{{ node }}">{{ node }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Proxmox template <span class="required">*</span></label>
+                            <input class="form-input" type="text" name="proxmox_template_id"
+                                id="template-id-input" placeholder="Enter VMID" required />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Network <span class="optional">(optional)</span></label>
+                            <select class="form-input" name="network">
+                                <option value="">None</option>
+                                {% for network in networks %}
+                                <option value="{{ network.pk }}">{{ network.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">CPU cores <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="number" name="cores" min="1" value="2" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Memory MB <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="number" name="memory" min="512" value="2048" />
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Config script <span class="optional">(optional)</span></label>
+                        <select class="form-input" name="config_script">
+                            <option value="">No script</option>
+                            {% for script in scripts %}
+                            <option value="{{ script.pk }}">{{ script.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Notes <span class="optional">(optional)</span></label>
+                        <input class="form-input" type="text" name="notes" placeholder="Any notes about this VM" />
+                    </div>
+                    <div style="display:flex; gap:10px; margin-top:14px;">
+                        <button type="submit" class="btn-save-item">Save VM</button>
+                        <button type="button" class="btn-cancel-item" onclick="toggleVMForm()">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <button type="button" class="btn-add" id="add-vm-btn" onclick="toggleVMForm()">+ Add VM</button>
+        </div>
+    </div>
+
+    <div class="wizard-actions">
+        <a href="{% url 'template_step2' template.pk %}" class="btn-outline">← Back</a>
+        <a href="{% url 'template_step4' template.pk %}" class="btn-primary">Next: Review →</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<div id="vm-config"
+    data-nodes="{{ proxmox_nodes_json }}"
+    data-templates="{{ proxmox_templates_json }}"
+    style="display:none;">
+</div>
+<script src="{% static 'js/wizard_step3.js' %}"></script>
+{% endblock %}

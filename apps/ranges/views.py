@@ -1,11 +1,42 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
 from .models import RangeTemplate, RangeTemplateNetwork, VMTemplate, Tag
 from .forms import RangeTemplateForm, RangeTemplateNetworkForm, VMTemplateForm
 from apps.proxmox.services import get_nodes, get_templates, get_sdn_zones, get_sdn_vnets
 import json
+
+
+def get_proxmox_data(user):
+    proxmox_nodes = []
+    proxmox_templates = {}
+    proxmox_sdn_zones = []
+    proxmox_sdn_vnets = []
+
+    if user.has_proxmox_credentials():
+        try:
+            nodes = get_nodes(user)
+            proxmox_nodes = [n['node'] for n in nodes]
+            for node in proxmox_nodes:
+                try:
+                    proxmox_templates[node] = [
+                        {'vmid': t['vmid'], 'name': t.get('name', f"VMID {t['vmid']}")}
+                        for t in get_templates(user, node)
+                    ]
+                except Exception:
+                    proxmox_templates[node] = []
+            try:
+                proxmox_sdn_zones = get_sdn_zones(user)
+            except Exception:
+                pass
+            try:
+                proxmox_sdn_vnets = get_sdn_vnets(user)
+            except Exception:
+                pass
+        except Exception:
+            pass
+
+    return proxmox_nodes, proxmox_templates, proxmox_sdn_zones, proxmox_sdn_vnets
 
 
 @login_required
@@ -22,44 +53,73 @@ def template_list(request):
     for template in templates:
         template.can_edit = template.created_by == request.user
 
-    context = {'templates': templates}
-    return render(request, 'ranges/template_list.html', context)
+    return render(request, 'ranges/template_list.html', {'templates': templates})
 
 
 @login_required
-def template_edit(request, pk=None):
+def template_step1(request, pk=None):
     if pk:
         template = get_object_or_404(RangeTemplate, pk=pk)
-        can_edit = template.created_by == request.user
-        if not can_edit:
+        if template.created_by != request.user:
             messages.error(request, 'You do not have permission to edit this template.')
             return redirect('template_list')
     else:
         template = None
-        can_edit = True
 
-    # Fetch Proxmox data for dropdowns
-    proxmox_nodes = []
-    proxmox_templates = {}
-    proxmox_sdn_zones = []
-    proxmox_sdn_vnets = []
+    if request.method == 'POST':
+        form = RangeTemplateForm(request.POST, instance=template)
+        if form.is_valid():
+            instance = form.save(commit=False)
+            if not pk:
+                instance.created_by = request.user
+            instance.save()
+            form.save_m2m()
+            return redirect('template_step2', pk=instance.pk)
+    else:
+        form = RangeTemplateForm(instance=template)
 
-    user = request.user
-    if user.has_proxmox_credentials():
-        try:
-            nodes = get_nodes(user)
-            proxmox_nodes = [n['node'] for n in nodes]
-            for node in proxmox_nodes:
-                try:
-                    proxmox_templates[node] = get_templates(user, node)
-                except Exception:
-                    proxmox_templates[node] = []
-            proxmox_sdn_zones = get_sdn_zones(user)
-            proxmox_sdn_vnets = get_sdn_vnets(user)
-        except Exception:
-            pass
+    context = {
+        'form': form,
+        'template': template,
+        'step': 1,
+    }
+    return render(request, 'ranges/wizard/step1.html', context)
 
-    # Get available scripts for VM template dropdown
+
+@login_required
+def template_step2(request, pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    proxmox_nodes, proxmox_templates, proxmox_sdn_zones, proxmox_sdn_vnets = get_proxmox_data(request.user)
+
+    if request.method == 'POST':
+        form = RangeTemplateNetworkForm(request.POST)
+        if form.is_valid():
+            network = form.save(commit=False)
+            network.range_template = template
+            network.save()
+            messages.success(request, f'Network "{network.name}" saved.')
+            return redirect('template_step2', pk=pk)
+    else:
+        form = RangeTemplateNetworkForm()
+
+    networks = template.networks.all()
+
+    context = {
+        'template': template,
+        'form': form,
+        'networks': networks,
+        'step': 2,
+        'proxmox_sdn_zones_json': json.dumps(proxmox_sdn_zones),
+        'proxmox_sdn_vnets_json': json.dumps(proxmox_sdn_vnets),
+    }
+    return render(request, 'ranges/wizard/step2.html', context)
+
+
+@login_required
+def template_step3(request, pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    proxmox_nodes, proxmox_templates, proxmox_sdn_zones, proxmox_sdn_vnets = get_proxmox_data(request.user)
+
     from apps.config_server.models import Script
     scripts = Script.objects.filter(
         created_by=request.user
@@ -69,84 +129,49 @@ def template_edit(request, pk=None):
     scripts = scripts.distinct()
 
     if request.method == 'POST':
-        form = RangeTemplateForm(request.POST, instance=template)
-
+        form = VMTemplateForm(request.POST)
         if form.is_valid():
-            instance = form.save(commit=False)
-            if not pk:
-                instance.created_by = request.user
-            instance.save()
-            form.save_m2m()
-
-            # Save networks
-            RangeTemplateNetwork.objects.filter(range_template=instance).delete()
-            network_data = json.loads(request.POST.get('networks_data', '[]'))
-            for net in network_data:
-                RangeTemplateNetwork.objects.create(
-                    range_template=instance,
-                    name=net.get('name', ''),
-                    proxmox_sdn_zone=net.get('sdn_zone', ''),
-                    proxmox_sdn_vnet=net.get('sdn_vnet', ''),
-                    subnet=net.get('subnet', ''),
-                    gateway=net.get('gateway', ''),
-                    auto_assign_ips=net.get('auto_assign_ips', True),
-                )
-
-            # Save VMs
-            VMTemplate.objects.filter(range_template=instance).delete()
-            vm_data = json.loads(request.POST.get('vms_data', '[]'))
-            for vm in vm_data:
-                script_id = vm.get('config_script')
-                script = None
-                if script_id:
-                    try:
-                        from apps.config_server.models import Script
-                        script = Script.objects.get(pk=script_id)
-                    except Exception:
-                        pass
-
-                VMTemplate.objects.create(
-                    range_template=instance,
-                    name=vm.get('name', ''),
-                    proxmox_template_id=vm.get('proxmox_template_id', 0),
-                    node=vm.get('node', ''),
-                    cores=vm.get('cores') or 2,
-                    memory=vm.get('memory') or 2048,
-                    config_script=script,
-                    notes=vm.get('notes', ''),
-                )
-
-            messages.success(request, 'Range template saved.')
-            return redirect('template_list')
-
+            vm = form.save(commit=False)
+            vm.range_template = template
+            vm.save()
+            messages.success(request, f'VM "{vm.name}" saved.')
+            return redirect('template_step3', pk=pk)
     else:
-        form = RangeTemplateForm(instance=template)
+        form = VMTemplateForm()
 
-    networks = []
-    vms = []
-    if template:
-        networks = list(template.networks.values(
-            'name', 'proxmox_sdn_zone', 'proxmox_sdn_vnet',
-            'subnet', 'gateway', 'auto_assign_ips'
-        ))
-        vms = list(template.vm_templates.values(
-            'name', 'proxmox_template_id', 'node',
-            'cores', 'memory', 'config_script_id', 'notes'
-        ))
+    vms = template.vm_templates.all()
+    networks = template.networks.all()
 
     context = {
-        'form': form,
         'template': template,
-        'can_edit': can_edit,
-        'proxmox_nodes': json.dumps(proxmox_nodes),
-        'proxmox_templates': json.dumps(proxmox_templates),
-        'proxmox_sdn_zones': json.dumps(proxmox_sdn_zones),
-        'proxmox_sdn_vnets': json.dumps(proxmox_sdn_vnets),
+        'form': form,
+        'vms': vms,
+        'networks': networks,
         'scripts': scripts,
-        'networks_json': json.dumps(networks),
-        'vms_json': json.dumps(vms),
+        'step': 3,
+        'proxmox_nodes_json': json.dumps(proxmox_nodes),
+        'proxmox_templates_json': json.dumps(proxmox_templates),
     }
-    return render(request, 'ranges/template_edit.html', context)
+    return render(request, 'ranges/wizard/step3.html', context)
+
+
+@login_required
+def template_step4(request, pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    networks = template.networks.all()
+    vms = template.vm_templates.select_related('config_script').all()
+
+    if request.method == 'POST':
+        messages.success(request, f'Template "{template.name}" saved successfully.')
+        return redirect('template_list')
+
+    context = {
+        'template': template,
+        'networks': networks,
+        'vms': vms,
+        'step': 4,
+    }
+    return render(request, 'ranges/wizard/step4.html', context)
 
 
 @login_required
@@ -156,3 +181,23 @@ def template_delete(request, pk):
         template.delete()
         messages.success(request, 'Template deleted.')
     return redirect('template_list')
+
+
+@login_required
+def network_delete(request, pk, network_pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    network = get_object_or_404(RangeTemplateNetwork, pk=network_pk, range_template=template)
+    if request.method == 'POST':
+        network.delete()
+        messages.success(request, 'Network removed.')
+    return redirect('template_step2', pk=pk)
+
+
+@login_required
+def vm_template_delete(request, pk, vm_pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    vm = get_object_or_404(VMTemplate, pk=vm_pk, range_template=template)
+    if request.method == 'POST':
+        vm.delete()
+        messages.success(request, 'VM removed.')
+    return redirect('template_step3', pk=pk)
