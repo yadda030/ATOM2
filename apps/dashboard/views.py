@@ -70,3 +70,11 @@ def dashboard(request):
     }
 
     return render(request, 'dashboard/dashboard.html', context)
+
+@login_required
+def connection_status(request):
+    from apps.proxmox.services import test_connection
+    connection = test_connection(request.user)
+    return render(request, 'dashboard/partials/connection_status.html', {
+        'connection': connection
+    })

@@ -58,19 +58,13 @@ def template_list(request):
 
 @login_required
 def template_step1(request, pk=None):
-    if pk:
-        template = get_object_or_404(RangeTemplate, pk=pk)
-        if template.created_by != request.user:
-            messages.error(request, 'You do not have permission to edit this template.')
-            return redirect('template_list')
-    else:
-        template = None
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user) if pk else None
 
     if request.method == 'POST':
         form = RangeTemplateForm(request.POST, instance=template)
         if form.is_valid():
             instance = form.save(commit=False)
-            if not pk:
+            if not template:
                 instance.created_by = request.user
             instance.save()
             form.save_m2m()
@@ -78,12 +72,26 @@ def template_step1(request, pk=None):
     else:
         form = RangeTemplateForm(instance=template)
 
-    context = {
+    return render(request, 'ranges/wizard/step1.html', {
         'form': form,
         'template': template,
         'step': 1,
-    }
-    return render(request, 'ranges/wizard/step1.html', context)
+    })
+
+
+@login_required
+def template_view(request, pk):
+    template = get_object_or_404(RangeTemplate, pk=pk)
+
+    if not template.is_public and template.created_by != request.user:
+        messages.error(request, 'You do not have permission to view this template.')
+        return redirect('template_list')
+
+    return render(request, 'ranges/template_view.html', {
+        'template': template,
+        'networks': template.networks.all(),
+        'vms': template.vm_templates.all(),
+    })
 
 
 @login_required
@@ -91,28 +99,14 @@ def template_step2(request, pk):
     template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
     proxmox_nodes, proxmox_templates, proxmox_sdn_zones, proxmox_sdn_vnets = get_proxmox_data(request.user)
 
-    if request.method == 'POST':
-        form = RangeTemplateNetworkForm(request.POST)
-        if form.is_valid():
-            network = form.save(commit=False)
-            network.range_template = template
-            network.save()
-            messages.success(request, f'Network "{network.name}" saved.')
-            return redirect('template_step2', pk=pk)
-    else:
-        form = RangeTemplateNetworkForm()
-
-    networks = template.networks.all()
-
-    context = {
+    return render(request, 'ranges/wizard/step2.html', {
         'template': template,
-        'form': form,
-        'networks': networks,
+        'networks': template.networks.all(),
+        'proxmox_sdn_zones': json.dumps(proxmox_sdn_zones),
+        'proxmox_sdn_vnets': json.dumps(proxmox_sdn_vnets),
         'step': 2,
-        'proxmox_sdn_zones_json': json.dumps(proxmox_sdn_zones),
-        'proxmox_sdn_vnets_json': json.dumps(proxmox_sdn_vnets),
-    }
-    return render(request, 'ranges/wizard/step2.html', context)
+        'is_edit': True,
+    })
 
 
 @login_required
@@ -128,50 +122,33 @@ def template_step3(request, pk):
     )
     scripts = scripts.distinct()
 
-    if request.method == 'POST':
-        form = VMTemplateForm(request.POST)
-        if form.is_valid():
-            vm = form.save(commit=False)
-            vm.range_template = template
-            vm.save()
-            messages.success(request, f'VM "{vm.name}" saved.')
-            return redirect('template_step3', pk=pk)
-    else:
-        form = VMTemplateForm()
-
-    vms = template.vm_templates.all()
-    networks = template.networks.all()
-
-    context = {
+    return render(request, 'ranges/wizard/step3.html', {
         'template': template,
-        'form': form,
-        'vms': vms,
-        'networks': networks,
+        'vms': template.vm_templates.all(),
+        'networks': template.networks.all(),
         'scripts': scripts,
+        'proxmox_nodes': json.dumps(proxmox_nodes),
+        'proxmox_templates': json.dumps(proxmox_templates),
         'step': 3,
-        'proxmox_nodes_json': json.dumps(proxmox_nodes),
-        'proxmox_templates_json': json.dumps(proxmox_templates),
-    }
-    return render(request, 'ranges/wizard/step3.html', context)
+        'is_edit': True,
+    })
 
 
 @login_required
 def template_step4(request, pk):
     template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
-    networks = template.networks.all()
-    vms = template.vm_templates.select_related('config_script').all()
 
     if request.method == 'POST':
-        messages.success(request, f'Template "{template.name}" saved successfully.')
+        messages.success(request, 'Range template saved successfully.')
         return redirect('template_list')
 
-    context = {
+    return render(request, 'ranges/wizard/step4.html', {
         'template': template,
-        'networks': networks,
-        'vms': vms,
+        'networks': template.networks.all(),
+        'vms': template.vm_templates.all(),
         'step': 4,
-    }
-    return render(request, 'ranges/wizard/step4.html', context)
+        'is_edit': True,
+    })
 
 
 @login_required
@@ -183,21 +160,92 @@ def template_delete(request, pk):
     return redirect('template_list')
 
 
+# --- Network CRUD ---
 @login_required
-def network_delete(request, pk, network_pk):
+def network_add(request, pk):
     template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
-    network = get_object_or_404(RangeTemplateNetwork, pk=network_pk, range_template=template)
+
+    if request.method == 'POST':
+        form = RangeTemplateNetworkForm(request.POST)
+        if form.is_valid():
+            network = form.save(commit=False)
+            network.range_template = template
+            network.save()
+            messages.success(request, 'Network added.')
+        else:
+            for error in form.errors.values():
+                messages.error(request, error)
+
+    return redirect('template_step2', pk=pk)
+
+
+@login_required
+def network_delete(request, pk, net_pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    network = get_object_or_404(RangeTemplateNetwork, pk=net_pk, range_template=template)
     if request.method == 'POST':
         network.delete()
         messages.success(request, 'Network removed.')
     return redirect('template_step2', pk=pk)
 
 
+# --- VM CRUD ---
 @login_required
-def vm_template_delete(request, pk, vm_pk):
+def vm_add(request, pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+
+    if request.method == 'POST':
+        form = VMTemplateForm(request.POST)
+        if form.is_valid():
+            vm = form.save(commit=False)
+            vm.range_template = template
+            vm.save()
+            messages.success(request, 'VM added.')
+        else:
+            for error in form.errors.values():
+                messages.error(request, error)
+
+    return redirect('template_step3', pk=pk)
+
+
+@login_required
+def vm_delete(request, pk, vm_pk):
     template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
     vm = get_object_or_404(VMTemplate, pk=vm_pk, range_template=template)
     if request.method == 'POST':
         vm.delete()
         messages.success(request, 'VM removed.')
+    return redirect('template_step3', pk=pk)
+
+@login_required
+def network_edit(request, pk, net_pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    network = get_object_or_404(RangeTemplateNetwork, pk=net_pk, range_template=template)
+
+    if request.method == 'POST':
+        form = RangeTemplateNetworkForm(request.POST, instance=network)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'Network updated.')
+        else:
+            for error in form.errors.values():
+                messages.error(request, error)
+
+    return redirect('template_step2', pk=pk)
+
+
+@login_required
+def vm_edit(request, pk, vm_pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    vm = get_object_or_404(VMTemplate, pk=vm_pk, range_template=template)
+
+    if request.method == 'POST':
+        form = VMTemplateForm(request.POST, instance=vm)
+        if form.is_valid():
+            form.save()
+            messages.success(request, 'VM updated.')
+        else:
+            for error in form.errors.values():
+                messages.error(request, error)
+
     return redirect('template_step3', pk=pk)

@@ -1,51 +1,72 @@
 document.addEventListener('DOMContentLoaded', function() {
-    const config = document.getElementById('vm-config');
-    const PROXMOX_NODES = JSON.parse(config.dataset.nodes);
-    const PROXMOX_TEMPLATES = JSON.parse(config.dataset.templates);
+    const vmData = document.getElementById('vm-config');
+
+    let PROXMOX_NODES = [];
+    let PROXMOX_TEMPLATES = {};
+
+    try {
+        PROXMOX_NODES = JSON.parse(vmData.dataset.nodes || '[]');
+    } catch(e) {
+        PROXMOX_NODES = [];
+    }
+
+    try {
+        PROXMOX_TEMPLATES = JSON.parse(vmData.dataset.templates || '{}');
+    } catch(e) {
+        PROXMOX_TEMPLATES = {};
+    }
 
     const nodeSelect = document.getElementById('node-select');
+    const templateInput = document.getElementById('template-id-input');
 
-    // Populate node select
     if (PROXMOX_NODES.length > 0 && nodeSelect) {
-        nodeSelect.innerHTML = `<option value="">Select node</option>` +
+        nodeSelect.innerHTML = '<option value="">Select node</option>' +
             PROXMOX_NODES.map(n => `<option value="${n}">${n}</option>`).join('');
 
         nodeSelect.addEventListener('change', function() {
-            updateTemplateSelect(this.value);
+            updateTemplateOptions(this.value);
         });
     }
 
-    function updateTemplateSelect(node) {
-        const templateInput = document.getElementById('template-id-input');
-        if (!templateInput) return;
-
+    function updateTemplateOptions(node) {
         const templates = PROXMOX_TEMPLATES[node] || [];
+        const el = document.getElementById('template-id-input');
+        if (!el) return;
+
         if (templates.length > 0) {
             const select = document.createElement('select');
             select.className = 'form-input';
             select.name = 'proxmox_template_id';
             select.id = 'template-id-input';
             select.required = true;
-            select.innerHTML = `<option value="">Select template</option>` +
+            select.innerHTML = '<option value="">Select template</option>' +
                 templates.map(t => `<option value="${t.vmid}">${t.name} (VMID ${t.vmid})</option>`).join('');
-            templateInput.replaceWith(select);
+            el.replaceWith(select);
         } else {
             const input = document.createElement('input');
             input.className = 'form-input';
-            input.type = 'text';
+            input.type = 'number';
             input.name = 'proxmox_template_id';
             input.id = 'template-id-input';
             input.placeholder = 'Enter VMID manually';
             input.required = true;
-            templateInput.replaceWith(input);
+            el.replaceWith(input);
         }
     }
-
-    window.toggleVMForm = function() {
-        const form = document.getElementById('add-vm-form');
-        const btn = document.getElementById('add-vm-btn');
-        const visible = form.style.display !== 'none';
-        form.style.display = visible ? 'none' : 'block';
-        btn.style.display = visible ? 'block' : 'none';
-    }
 });
+
+function toggleEditForm(formId) {
+    const form = document.getElementById(formId);
+    if (!form) return;
+    const isHidden = form.style.display === 'none';
+    form.style.display = isHidden ? 'block' : 'none';
+}
+
+function toggleAddForm(formId, btnId) {
+    const form = document.getElementById(formId);
+    const btn = btnId ? document.getElementById(btnId) : null;
+    if (!form) return;
+    const isHidden = form.style.display === 'none';
+    form.style.display = isHidden ? 'block' : 'none';
+    if (btn) btn.style.display = isHidden ? 'none' : 'block';
+}

@@ -1,0 +1,16 @@
+{% if connection.status == 'connected' %}
+<div class="connection-bar connection-ok">
+    <span class="status-dot dot-green"></span>
+    Connected to Proxmox
+</div>
+{% elif connection.status == 'unconfigured' %}
+<div class="connection-bar connection-warn">
+    <span class="status-dot dot-warn"></span>
+    No Proxmox credentials configured — <a href="{% url 'profile' %}">add them in your profile</a>
+</div>
+{% else %}
+<div class="connection-bar connection-error">
+    <span class="status-dot dot-red"></span>
+    Cannot connect to Proxmox - Error in connection or credentials
+</div>
+{% endif %}

@@ -504,3 +504,17 @@
 }
 
 .review-item:last-child { border-bottom: none; }
+
+.saved-item-wrapper {
+    margin-bottom: 8px;
+}
+
+.saved-item-wrapper .saved-item {
+    margin-bottom: 0;
+}
+
+.saved-item-wrapper .add-form {
+    border-radius: 0 0 8px 8px;
+    border-top: none;
+    margin-top: 0;
+}

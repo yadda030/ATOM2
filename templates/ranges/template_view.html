@@ -1,0 +1,93 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — {{ template.name }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page" style="max-width: 800px;">
+    <div class="page-header">
+        <div class="page-title">{{ template.name }}</div>
+        <a href="{% url 'template_list' %}" class="btn-outline">Back</a>
+    </div>
+
+    <!-- Template info -->
+    <div class="panel">
+        <div class="panel-header">Template info</div>
+        <div class="panel-body">
+            <div class="review-section">
+                <div class="review-item">
+                    <span style="color:#8a9bb0; font-size:12px;">Visibility</span><br>
+                    {% if template.is_public %}Public{% else %}Private{% endif %}
+                </div>
+                {% if template.description %}
+                <div class="review-item">
+                    <span style="color:#8a9bb0; font-size:12px;">Description</span><br>
+                    {{ template.description }}
+                </div>
+                {% endif %}
+                {% if template.tags.all %}
+                <div class="review-item">
+                    <span style="color:#8a9bb0; font-size:12px;">Tags</span><br>
+                    <div class="template-tags" style="margin-top:6px;">
+                        {% for tag in template.tags.all %}
+                        <span class="tag">{{ tag.name }}</span>
+                        {% endfor %}
+                    </div>
+                </div>
+                {% endif %}
+                <div class="review-item">
+                    <span style="color:#8a9bb0; font-size:12px;">Created by</span><br>
+                    {{ template.created_by.username }}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Networks -->
+    <div class="panel">
+        <div class="panel-header">Networks ({{ networks.count }})</div>
+        <div class="panel-body">
+            {% for network in networks %}
+            <div class="saved-item">
+                <div>
+                    <div class="saved-item-name">{{ network.name }}</div>
+                    <div class="saved-item-meta">
+                        {% if network.subnet %}{{ network.subnet }}{% endif %}
+                        {% if network.proxmox_sdn_vnet %} · {{ network.proxmox_sdn_vnet }}{% endif %}
+                        {% if network.auto_assign_ips %} · Auto assign IPs{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state">No networks configured.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- VMs -->
+    <div class="panel">
+        <div class="panel-header">Virtual machines ({{ vms.count }})</div>
+        <div class="panel-body">
+            {% for vm in vms %}
+            <div class="saved-item">
+                <div>
+                    <div class="saved-item-name">{{ vm.name }}</div>
+                    <div class="saved-item-meta">
+                        VMID {{ vm.proxmox_template_id }} · {{ vm.node }}
+                        · {{ vm.cores }} cores · {{ vm.memory }}MB
+                        {% if vm.config_script %} · {{ vm.config_script.name }}{% endif %}
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state">No VMs configured.</div>
+            {% endfor %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

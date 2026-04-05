@@ -12,22 +12,12 @@
     <div class="page-title">Dashboard</div>
 
     <!-- Connection Status -->
-    {% if connection.status == 'connected' %}
-    <div class="connection-bar connection-ok">
-        <span class="connection-dot"></span>
-        Connected to Proxmox — {{ connection.message }}
+    <div id="connection-status"
+        hx-get="{% url 'connection_status' %}"
+        hx-trigger="load, every 30s"
+        hx-swap="innerHTML">
+        {% include 'dashboard/partials/connection_status.html' %}
     </div>
-    {% elif connection.status == 'unconfigured' %}
-    <div class="connection-bar connection-warn">
-        <span class="connection-dot"></span>
-        No Proxmox credentials configured — <a href="#">add them in your profile</a>
-    </div>
-    {% else %}
-    <div class="connection-bar connection-error">
-        <span class="connection-dot"></span>
-        Cannot connect to Proxmox
-    </div>
-    {% endif %}
 
     <!-- Cluster Stats -->
     <div class="stats-grid">
