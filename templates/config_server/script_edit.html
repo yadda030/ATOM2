@@ -69,14 +69,12 @@
                 <div class="panel-header">Tags</div>
                 <div class="panel-body">
                     <div class="tags-wrap" id="tags-wrap">
-                        {% if form.tags.value %}
-                            {% for tag in form.tags.value %}
-                                <span class="tag">{{ tag }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
-                            {% endfor %}
-                        {% endif %}
+                        {% for tag in existing_tags_list %}
+                        <span class="tag">{{ tag }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
+                        {% endfor %}
                         <input class="tag-input" id="tag-input" placeholder="Add tag..." />
                     </div>
-                    <input type="hidden" name="tags" id="tags-hidden" value="{{ form.tags.value|default:'' }}" />
+                    <input type="hidden" name="tags" id="tags-hidden" value="{{ existing_tags }}" />
                     <div style="font-size: 11px; color: #b0bec8; margin-top: 6px;">Press enter to add</div>
                 </div>
             </div>

@@ -6,6 +6,7 @@ from django.utils import timezone
 from django.forms import formset_factory
 from .models import Script, ScriptVariable, MachineConfig
 from .forms import ScriptForm, ScriptVariableForm
+from apps.ranges.models import Tag
 
 
 def serve_script(request, mac_address):
@@ -17,6 +18,7 @@ def serve_script(request, mac_address):
         return HttpResponse(config.config_script, content_type='text/plain')
     except MachineConfig.DoesNotExist:
         raise Http404
+
 
 @login_required
 def script_list(request):
@@ -38,7 +40,6 @@ def script_list(request):
 
     scripts = scripts.prefetch_related('tags', 'variables').order_by('-created_at')
 
-    # Annotate each script with edit permission
     for script in scripts:
         script.can_edit = script.is_editable_by(request.user)
 
@@ -48,6 +49,7 @@ def script_list(request):
         'search': search,
     }
     return render(request, 'config_server/script_list.html', context)
+
 
 @login_required
 def script_edit(request, pk=None):
@@ -76,8 +78,16 @@ def script_edit(request, pk=None):
             if not pk:
                 instance.created_by = request.user
             instance.save()
-            form.save_m2m()
 
+            # Handle tags manually
+            tag_names = [t.strip() for t in request.POST.get('tags', '').split(',') if t.strip()]
+            tags = []
+            for name in tag_names:
+                tag, _ = Tag.objects.get_or_create(name=name)
+                tags.append(tag)
+            instance.tags.set(tags)
+
+            # Save variables
             ScriptVariable.objects.filter(script=instance, is_system=False).delete()
             for var_form in formset:
                 if var_form.cleaned_data and not var_form.cleaned_data.get('DELETE'):
@@ -97,6 +107,13 @@ def script_edit(request, pk=None):
             ))
         formset = ScriptVariableFormSet(prefix='variables', initial=initial)
 
+    # Build existing tags for display
+    existing_tags = ''
+    existing_tags_list = []
+    if script:
+        existing_tags_list = list(script.tags.values_list('name', flat=True))
+        existing_tags = ','.join(existing_tags_list)
+
     system_vars = []
     if script:
         system_vars = script.variables.filter(is_system=True)
@@ -107,8 +124,11 @@ def script_edit(request, pk=None):
         'script': script,
         'system_vars': system_vars,
         'can_edit': can_edit,
+        'existing_tags': existing_tags,
+        'existing_tags_list': existing_tags_list,
     }
     return render(request, 'config_server/script_edit.html', context)
+
 
 @login_required
 def script_delete(request, pk):
