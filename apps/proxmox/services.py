@@ -41,6 +41,15 @@ def get_node_status(user, node):
     proxmox = get_proxmox_connection(user)
     return proxmox.nodes(node).status.get()
 
+# --- Pools ---
+
+def get_pools(user):
+    proxmox = get_proxmox_connection(user)
+    return proxmox.pools.get()
+
+def create_pool(user, pool_id, comment=''):
+    proxmox = get_proxmox_connection(user)
+    return proxmox.pools.post(poolid=pool_id, comment=comment)
 
 # --- VMs ---
 
@@ -159,3 +168,54 @@ def get_task_status(user, node, upid):
     """
     proxmox = get_proxmox_connection(user)
     return proxmox.nodes(node).tasks(upid).status.get()
+
+# --- Validation Checks ---
+
+def validate_range_template(user, template):
+    """
+    Validates that all Proxmox resources referenced in a
+    RangeTemplate still exist. Returns a list of warnings.
+    """
+    warnings = []
+
+    if not user.has_proxmox_credentials():
+        return ['No Proxmox credentials configured.']
+
+    try:
+        nodes = get_nodes(user)
+        node_names = [n['node'] for n in nodes]
+        online_nodes = [n['node'] for n in nodes if n.get('status') == 'online']
+
+        for vm in template.vm_templates.all():
+            # Check node exists
+            if vm.node not in node_names:
+                warnings.append(f"VM '{vm.name}': node '{vm.node}' not found in cluster.")
+                continue
+
+            # Check node is online
+            if vm.node not in online_nodes:
+                warnings.append(f"VM '{vm.name}': node '{vm.node}' is offline.")
+                continue
+
+            # Check template VMID exists
+            try:
+                templates = get_templates(user, vm.node)
+                vmids = [t['vmid'] for t in templates]
+                if vm.proxmox_template_id not in vmids:
+                    warnings.append(f"VM '{vm.name}': template VMID {vm.proxmox_template_id} not found on '{vm.node}'.")
+            except Exception:
+                warnings.append(f"VM '{vm.name}': could not verify template VMID {vm.proxmox_template_id}.")
+
+        # Check networks
+        try:
+            sdn_vnets = [v['vnet'] for v in get_sdn_vnets(user)]
+            for network in template.networks.all():
+                if network.proxmox_sdn_vnet and network.proxmox_sdn_vnet not in sdn_vnets:
+                    warnings.append(f"Network '{network.name}': VNet '{network.proxmox_sdn_vnet}' not found in cluster.")
+        except Exception:
+            pass
+
+    except Exception as e:
+        warnings.append(f"Could not connect to Proxmox: {str(e)}")
+
+    return warnings

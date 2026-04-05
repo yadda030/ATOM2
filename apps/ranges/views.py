@@ -67,14 +67,23 @@ def template_step1(request, pk=None):
             if not template:
                 instance.created_by = request.user
             instance.save()
-            form.save_m2m()
+            form.save(commit=True)  # this calls our custom save which handles tags
             return redirect('template_step2', pk=instance.pk)
     else:
         form = RangeTemplateForm(instance=template)
 
+    # Build comma separated tags string for the template
+    existing_tags = ''
+    existing_tags_list = []
+    if template:
+        existing_tags_list = list(template.tags.values_list('name', flat=True))
+        existing_tags = ','.join(existing_tags_list)
+
     return render(request, 'ranges/wizard/step1.html', {
         'form': form,
         'template': template,
+        'existing_tags': existing_tags,
+        'existing_tags_list': existing_tags_list,
         'step': 1,
     })
 
@@ -102,8 +111,8 @@ def template_step2(request, pk):
     return render(request, 'ranges/wizard/step2.html', {
         'template': template,
         'networks': template.networks.all(),
-        'proxmox_sdn_zones': json.dumps(proxmox_sdn_zones),
-        'proxmox_sdn_vnets': json.dumps(proxmox_sdn_vnets),
+        'proxmox_sdn_zones_json': json.dumps(proxmox_sdn_zones),
+        'proxmox_sdn_vnets_json': json.dumps(proxmox_sdn_vnets),
         'step': 2,
         'is_edit': True,
     })
@@ -127,8 +136,8 @@ def template_step3(request, pk):
         'vms': template.vm_templates.all(),
         'networks': template.networks.all(),
         'scripts': scripts,
-        'proxmox_nodes': json.dumps(proxmox_nodes),
-        'proxmox_templates': json.dumps(proxmox_templates),
+        'proxmox_nodes_json': json.dumps(proxmox_nodes),
+        'proxmox_templates_json': json.dumps(proxmox_templates),
         'step': 3,
         'is_edit': True,
     })
@@ -142,12 +151,16 @@ def template_step4(request, pk):
         messages.success(request, 'Range template saved successfully.')
         return redirect('template_list')
 
+    from apps.proxmox.services import validate_range_template
+    validation_warnings = validate_range_template(request.user, template)
+
     return render(request, 'ranges/wizard/step4.html', {
         'template': template,
         'networks': template.networks.all(),
         'vms': template.vm_templates.all(),
         'step': 4,
         'is_edit': True,
+        'validation_warnings': validation_warnings,
     })
 
 

@@ -3,7 +3,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const tagsWrap = document.getElementById('tags-wrap');
     const tagInput = document.getElementById('tag-input');
 
-    if (!tagInput) return;
+    if (!tagInput || !tagsWrap || !tagsHidden) return;
 
     tagInput.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
@@ -12,7 +12,6 @@ document.addEventListener('DOMContentLoaded', function() {
             if (value) {
                 addTag(value);
                 tagInput.value = '';
-                updateTagsHidden();
             }
         }
     });
@@ -22,6 +21,7 @@ document.addEventListener('DOMContentLoaded', function() {
         span.className = 'tag';
         span.innerHTML = `${name} <span class="tag-remove" onclick="removeTag(this)">×</span>`;
         tagsWrap.insertBefore(span, tagInput);
+        updateTagsHidden();
     }
 
     window.removeTag = function(el) {
@@ -34,4 +34,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .map(t => t.childNodes[0].textContent.trim());
         tagsHidden.value = tags.join(',');
     }
+
+    updateTagsHidden();
+
+    // Debug — remove after testing
+    document.querySelector('form').addEventListener('submit', function() {
+        console.log('Tags being submitted:', tagsHidden.value);
+    });
 });

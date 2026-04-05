@@ -1,5 +1,5 @@
 from django import forms
-from .models import RangeTemplate, RangeTemplateNetwork, VMTemplate
+from .models import RangeTemplate, RangeTemplateNetwork, VMTemplate, Tag
 
 
 class RangeTemplateForm(forms.ModelForm):
@@ -25,7 +25,6 @@ class RangeTemplateForm(forms.ModelForm):
             ]
             tags = []
             for name in tag_names:
-                from .models import Tag
                 tag, _ = Tag.objects.get_or_create(name=name)
                 tags.append(tag)
             instance.tags.set(tags)

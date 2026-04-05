@@ -50,6 +50,22 @@
     <div class="panel">
         <div class="panel-header">Virtual machines ({{ vms.count }})</div>
         <div class="panel-body">
+            <!-- Validation warnings go here, before the review sections -->
+            {% if validation_warnings %}
+            <div style="background: #faeeda; border: 0.5px solid #fac775; border-radius: 8px; padding: 14px 16px; margin-bottom: 20px;">
+                <div style="font-size: 12px; font-weight: 500; color: #854f0b; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 10px;">Validation warnings</div>
+                <p style="font-size: 13px; color: #8a9bb0; margin-bottom: 12px;">
+                    The following issues were found. You can still save but deployment may fail until resolved.
+                </p>
+                {% for warning in validation_warnings %}
+                <div style="display:flex; align-items:flex-start; gap:10px; padding: 8px 0; border-bottom: 0.5px solid #f0c875; font-size:13px; color:#854f0b;">
+                    <span>⚠</span>
+                    <span>{{ warning }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
+
             {% for vm in vms %}
             <div class="review-item">
                 <strong>{{ vm.name }}</strong> — {{ vm.node }} · VMID {{ vm.proxmox_template_id }} · {{ vm.cores }} cores · {{ vm.memory }}MB

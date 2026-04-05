@@ -62,14 +62,26 @@ def poll_user_vms(user_id):
 
 @shared_task
 def deploy_range(deployment_id):
-    """
-    Deploy all VMs in a RangeDeployment.
-    Clones each VMTemplate, captures MAC address,
-    and creates MachineConfig for config server.
-    """
     try:
         deployment = RangeDeployment.objects.get(id=deployment_id)
         user = deployment.user
+
+        # Validate template resources
+        try:
+            from apps.proxmox.services import validate_range_template
+            warnings = validate_range_template(user, deployment.range_template)
+            if warnings:
+                deployment.status = 'error'
+                deployment.save()
+                from apps.ranges.models import ActivityLog
+                ActivityLog.objects.create(
+                    user=user,
+                    event_type='deployment_failed',
+                    message=f"Deployment failed validation: {', '.join(warnings)}"
+                )
+                return f"Deployment failed validation: {warnings}"
+        except Exception as e:
+            pass  # if validation itself fails, continue with deployment
 
         deployment.status = 'deploying'
         deployment.save()
@@ -78,10 +90,8 @@ def deploy_range(deployment_id):
 
         for vm_template in vm_templates:
             try:
-                # Get a new VMID
                 newid = _get_next_vmid(user)
 
-                # Clone the VM
                 upid = services.clone_vm(
                     user=user,
                     node=vm_template.node,
@@ -90,14 +100,11 @@ def deploy_range(deployment_id):
                     name=f"{deployment.name}-{vm_template.name}",
                 )
 
-                # Wait for clone task to complete
                 _wait_for_task(user, vm_template.node, upid)
 
-                # Get VM config to capture MAC address
                 config = services.get_vm_config(user, vm_template.node, newid)
                 mac_address = _extract_mac(config)
 
-                # Create DeployedVM record
                 deployed_vm = DeployedVM.objects.create(
                     deployment=deployment,
                     vm_template=vm_template,
@@ -108,7 +115,6 @@ def deploy_range(deployment_id):
                     node=vm_template.node,
                 )
 
-                # Render and store config script
                 if vm_template.config_script:
                     rendered_script = _render_script(
                         deployed_vm=deployed_vm,
@@ -120,7 +126,6 @@ def deploy_range(deployment_id):
                         config_script=rendered_script,
                     )
 
-                # Start the VM
                 services.start_vm(user, vm_template.node, newid)
                 deployed_vm.status = 'running'
                 deployed_vm.save()
@@ -139,8 +144,11 @@ def deploy_range(deployment_id):
     except RangeDeployment.DoesNotExist:
         return f"Deployment {deployment_id} not found"
     except Exception as e:
-        deployment.status = 'error'
-        deployment.save()
+        try:
+            deployment.status = 'error'
+            deployment.save()
+        except Exception:
+            pass
         return f"Error deploying range: {str(e)}"
 
 

@@ -30,7 +30,6 @@
         <div class="panel-body">
             <p class="step-hint">Add networks for your range. VMs can be assigned to these in the next step. Skip if you don't need custom networking.</p>
 
-            <!-- Saved networks -->
             {% for network in networks %}
             <div class="saved-item-wrapper">
                 <div class="saved-item">
@@ -51,7 +50,6 @@
                     </div>
                 </div>
 
-                <!-- Inline edit form -->
                 <div class="add-form" id="network-edit-{{ network.pk }}" style="display:none;">
                     <div class="add-form-title">Edit network</div>
                     <form method="post" action="{% url 'network_edit' template.pk network.pk %}">
@@ -98,43 +96,32 @@
             <div class="empty-state" style="margin-bottom: 16px;">No networks added yet.</div>
             {% endfor %}
 
-            <!-- Add network form -->
-            <div class="add-form" id="add-network-form" {% if not show_form %}style="display:none;"{% endif %}>
+            <div class="add-form" id="add-network-form" style="display:none;">
                 <div class="add-form-title">Add network</div>
-                <form method="post">
+                <form method="post" action="{% url 'network_add' template.pk %}">
                     {% csrf_token %}
                     <div class="form-group">
                         <label class="form-label">Network name <span class="required">*</span></label>
-                        <input class="form-input" type="text" name="name"
-                            value="{{ form.name.value|default:'' }}"
-                            placeholder="e.g. LAN" required />
+                        <input class="form-input" type="text" name="name" placeholder="e.g. LAN" required />
                     </div>
                     <div class="form-row-3">
                         <div class="form-group">
                             <label class="form-label">SDN Zone <span class="optional">(optional)</span></label>
-                            <input class="form-input" type="text" name="proxmox_sdn_zone"
-                                value="{{ form.proxmox_sdn_zone.value|default:'' }}"
-                                placeholder="zone-name" id="sdn-zone-input" />
+                            <input class="form-input" type="text" name="proxmox_sdn_zone" placeholder="zone-name" id="sdn-zone-input" />
                         </div>
                         <div class="form-group">
                             <label class="form-label">VNet <span class="optional">(optional)</span></label>
-                            <input class="form-input" type="text" name="proxmox_sdn_vnet"
-                                value="{{ form.proxmox_sdn_vnet.value|default:'' }}"
-                                placeholder="vnet-name" id="sdn-vnet-input" />
+                            <input class="form-input" type="text" name="proxmox_sdn_vnet" placeholder="vnet-name" id="sdn-vnet-input" />
                         </div>
                         <div class="form-group">
                             <label class="form-label">Subnet <span class="optional">(optional)</span></label>
-                            <input class="form-input" type="text" name="subnet"
-                                value="{{ form.subnet.value|default:'' }}"
-                                placeholder="e.g. 10.10.1.0/24" />
+                            <input class="form-input" type="text" name="subnet" placeholder="e.g. 10.10.1.0/24" />
                         </div>
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Gateway <span class="optional">(optional)</span></label>
-                            <input class="form-input" type="text" name="gateway"
-                                value="{{ form.gateway.value|default:'' }}"
-                                placeholder="e.g. 10.10.1.1" />
+                            <input class="form-input" type="text" name="gateway" placeholder="e.g. 10.10.1.1" />
                         </div>
                         <div class="form-group">
                             <label class="form-label">Auto assign IPs</label>
@@ -146,12 +133,12 @@
                     </div>
                     <div style="display:flex; gap:10px; margin-top:14px;">
                         <button type="submit" class="btn-save-item">Save network</button>
-                        <button type="button" class="btn-cancel-item" onclick="toggleAddForm()">Cancel</button>
+                        <button type="button" class="btn-cancel-item" onclick="toggleAddForm('add-network-form', 'add-network-btn')">Cancel</button>
                     </div>
                 </form>
             </div>
 
-            <button type="button" class="btn-add" id="add-network-btn" onclick="toggleAddForm()">+ Add network</button>
+            <button type="button" class="btn-add" id="add-network-btn" onclick="toggleAddForm('add-network-form', 'add-network-btn')">+ Add network</button>
         </div>
     </div>
 
