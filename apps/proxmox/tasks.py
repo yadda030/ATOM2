@@ -77,7 +77,7 @@ def deploy_range(deployment_id):
                 ActivityLog.objects.create(
                     user=user,
                     event_type='deployment_failed',
-                    message=f"Deployment failed validation: {', '.join(warnings)}"
+                    message=f"Deployment failed validation: {','.join(_sanitize_error(warnings))}"
                 )
                 return f"Deployment failed validation: {warnings}"
         except Exception as e:
@@ -154,41 +154,73 @@ def deploy_range(deployment_id):
 
 @shared_task
 def teardown_range(deployment_id):
-    """
-    Stop and delete all VMs in a RangeDeployment.
-    """
     try:
+        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog
         deployment = RangeDeployment.objects.get(id=deployment_id)
         user = deployment.user
 
         deployment.status = 'deleting'
         deployment.save()
 
-        for vm in deployment.vms.all():
+        vms = deployment.vms.all()
+        print(f"Tearing down {deployment.name} — {vms.count()} VMs found")
+
+        for vm in vms:
+            print(f"VM: {vm.name} — VMID: {vm.proxmox_vmid} — Status: {vm.status}")
             if not vm.proxmox_vmid:
+                vm.delete()
                 continue
             try:
-                # Stop VM first
-                services.stop_vm(user, vm.node, vm.proxmox_vmid)
-                time.sleep(5)  # give it a moment to stop
-                # Delete VM
+                if vm.status == 'running':
+                    services.stop_vm(user, vm.node, vm.proxmox_vmid)
+                    time.sleep(5)
                 services.delete_vm(user, vm.node, vm.proxmox_vmid)
-                vm.status = 'stopped'
-                vm.save()
+                vm.delete()
+                print(f"Deleted {vm.name} successfully")
             except Exception as e:
-                vm.status = 'error'
-                vm.save()
+                error_msg = str(e)
+                print(f"Error deleting {vm.name}: {error_msg}")
+                # If VM doesn't exist on Proxmox anymore, clean up the database record
+                if '500' in error_msg or 'does not exist' in error_msg or '404' in error_msg:
+                    print(f"VM {vm.name} already gone from Proxmox — removing database record")
+                    vm.delete()
+                else:
+                    vm.status = 'error'
+                    vm.save()
 
-        deployment.status = 'stopped'
-        deployment.save()
+        # Check if all VMs were cleaned up
+        # Check if all VMs were cleaned up
+        remaining = deployment.vms.count()
+        if remaining == 0:
+            # Clean up network records
+            deployment.networks.all().delete()
+            # Log before deleting
+            ActivityLog.objects.create(
+                user=user,
+                event_type='deployment_stopped',
+                message=f"Range '{deployment.name}' destroyed and removed."
+            )
+            # Delete the deployment record entirely
+            deployment.delete()
+        else:
+            deployment.status = 'fragmented'
+            deployment.save()
+            ActivityLog.objects.create(
+                user=user,
+                event_type='deployment_failed',
+                message=f"Range '{deployment.name}' teardown incomplete — {remaining} VMs could not be removed."
+            )
 
         return f"Teardown of {deployment.name} complete"
 
     except RangeDeployment.DoesNotExist:
         return f"Deployment {deployment_id} not found"
     except Exception as e:
-        deployment.status = 'error'
-        deployment.save()
+        try:
+            deployment.status = 'error'
+            deployment.save()
+        except Exception:
+            pass
         return f"Error tearing down range: {str(e)}"
 
 
@@ -272,3 +304,20 @@ def _render_script(deployed_vm, script):
     template = Template(script.content)
     context = Context(context_data)
     return template.render(context)
+
+# --- Error Handling ---
+
+def _sanitize_error(message):
+    """Strip sensitive connection details from error messages."""
+    if 'HTTPSConnectionPool' in message or 'ConnectionError' in message:
+        return 'Could not connect to Proxmox cluster.'
+    if 'Authentication' in message or '401' in message:
+        return 'Proxmox authentication failed. Check your credentials.'
+    if '500' in message:
+        return 'Proxmox returned an internal server error.'
+    if '403' in message:
+        return 'Permission denied by Proxmox. Check API token permissions.'
+    if 'timeout' in message.lower():
+        return 'Connection to Proxmox timed out.'
+    # Truncate anything else to 100 chars
+    return message[:100] if len(message) > 100 else message

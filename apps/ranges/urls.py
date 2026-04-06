@@ -18,4 +18,16 @@ urlpatterns = [
     path('templates/<int:pk>/vms/add/', views.vm_add, name='vm_add'),
     path('templates/<int:pk>/vms/<int:vm_pk>/edit/', views.vm_edit, name='vm_edit'),
     path('templates/<int:pk>/vms/<int:vm_pk>/delete/', views.vm_delete, name='vm_delete'),
+
+    # Range deployment URLs
+    path('', views.range_list, name='range_list'),
+    path('deploy/', views.range_deploy, name='range_deploy'),
+    path('<int:pk>/', views.range_detail, name='range_detail'),
+    path('<int:pk>/start/', views.range_start, name='range_start'),
+    path('<int:pk>/stop/', views.range_stop, name='range_stop'),
+    path('<int:pk>/destroy/', views.range_destroy, name='range_destroy'),
+    path('<int:pk>/archive/', views.range_archive, name='range_archive'),
+    path('<int:pk>/delete/', views.range_delete, name='range_delete'),
+    path('<int:pk>/vms/<int:vm_pk>/start/', views.vm_start, name='vm_start'),
+    path('<int:pk>/vms/<int:vm_pk>/stop/', views.vm_stop, name='vm_stop'),
 ]

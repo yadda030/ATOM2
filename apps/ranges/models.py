@@ -51,24 +51,41 @@ class VMTemplate(models.Model):
 
 class RangeDeployment(models.Model):
     STATUS_CHOICES = [
+        ('undeployed', 'Undeployed'),
         ('pending', 'Pending'),
         ('deploying', 'Deploying'),
         ('running', 'Running'),
         ('stopped', 'Stopped'),
+        ('fragmented', 'Fragmented'),
         ('deleting', 'Deleting'),
         ('error', 'Error'),
+        ('archived', 'Archived'),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='deployments')
     range_template = models.ForeignKey(RangeTemplate, on_delete=models.SET_NULL, null=True)
     name = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='undeployed')
+    proxmox_pool = models.CharField(max_length=255, blank=True, null=True)
+    is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.user.username} - {self.name} ({self.status})"
 
+    def get_fragmented(self):
+        """Returns True if some VMs are missing or errored."""
+        vms = self.vms.all()
+        if not vms:
+            return False
+        return vms.filter(status='error').exists()
+
+    def running_vms(self):
+        return self.vms.filter(status='running').count()
+
+    def total_vms(self):
+        return self.vms.count()
 
 class RangeNetwork(models.Model):
     deployment = models.ForeignKey(RangeDeployment, on_delete=models.CASCADE, related_name='networks')

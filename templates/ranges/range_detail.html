@@ -1,0 +1,133 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — {{ deployment.name }}{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div>
+            <div class="page-title">{{ deployment.name }}</div>
+            <div style="font-size:13px; color:#8a9bb0; margin-top:4px;">
+                {{ deployment.range_template.name|default:"No template" }} ·
+                Deployed {{ deployment.created_at|timesince }} ago
+            </div>
+        </div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <span class="badge badge-{{ deployment.status }}">{{ deployment.get_status_display }}</span>
+            {% if deployment.status == 'stopped' %}
+            <form method="post" action="{% url 'range_start' deployment.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-sm btn-start">Start all</button>
+            </form>
+            {% endif %}
+            {% if deployment.status == 'running' %}
+            <form method="post" action="{% url 'range_stop' deployment.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-sm btn-stop">Stop all</button>
+            </form>
+            {% endif %}
+            {% if deployment.status in 'running,stopped,fragmented,error' %}
+            <form method="post" action="{% url 'range_destroy' deployment.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-sm btn-destroy" onclick="return confirm('Destroy all VMs in this range?')">Destroy</button>
+            </form>
+            {% endif %}
+            <form method="post" action="{% url 'range_archive' deployment.pk %}" style="display:inline;">
+                {% csrf_token %}
+                <button type="submit" class="btn-sm btn-edit">Archive</button>
+            </form>
+            <a href="{% url 'range_list' %}" class="btn-outline">← Back</a>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Networks -->
+    {% if networks %}
+    <div class="panel" style="margin-bottom:16px;">
+        <div class="panel-header">Networks</div>
+        <div class="panel-body">
+            <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:10px;">
+                {% for network in networks %}
+                <div class="saved-item">
+                    <div>
+                        <div class="saved-item-name">{{ network.name }}</div>
+                        <div class="saved-item-meta">
+                            {% if network.subnet %}{{ network.subnet }}{% endif %}
+                            {% if network.proxmox_sdn_vnet %} · {{ network.proxmox_sdn_vnet }}{% endif %}
+                        </div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- VMs -->
+    <div class="panel">
+        <div class="panel-header">Virtual machines ({{ vms.count }})</div>
+        <div class="panel-body">
+            {% if vms %}
+            <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:12px;">
+                {% for vm in vms %}
+                <div class="vm-detail-card">
+                    <div class="vm-detail-header">
+                        <div>
+                            <div class="vm-detail-name">{{ vm.name }}</div>
+                            <div class="vm-detail-meta">
+                                {{ vm.node }} · VMID {{ vm.proxmox_vmid|default:"pending" }}
+                            </div>
+                            <div class="vm-detail-meta">
+                                {% if vm.vm_template %}
+                                {{ vm.vm_template.cores }} cores · {{ vm.vm_template.memory }}MB
+                                {% endif %}
+                            </div>
+                        </div>
+                        <span class="badge badge-{{ vm.status }}">{{ vm.get_status_display }}</span>
+                    </div>
+                    {% if vm.mac_address %}
+                    <div class="vm-detail-mac">MAC: {{ vm.mac_address }}</div>
+                    {% endif %}
+                    {% if vm.machine_config %}
+                    <div class="vm-detail-checkin">
+                        {% if vm.machine_config.has_checked_in %}
+                        <span style="color:#3b6d11; font-size:12px;">✓ Checked in {{ vm.machine_config.last_checkin|timesince }} ago</span>
+                        {% else %}
+                        <span style="color:#8a9bb0; font-size:12px;">Waiting for check-in...</span>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                    <div class="vm-detail-actions">
+                        {% if vm.status == 'stopped' %}
+                        <form method="post" action="{% url 'vm_start' deployment.pk vm.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-sm btn-start">Start</button>
+                        </form>
+                        {% endif %}
+                        {% if vm.status == 'running' %}
+                        <form method="post" action="{% url 'vm_stop' deployment.pk vm.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-sm btn-stop">Stop</button>
+                        </form>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="empty-state">No VMs deployed yet.</div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
