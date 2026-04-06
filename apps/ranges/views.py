@@ -466,3 +466,41 @@ def vm_stop(request, pk, vm_pk):
         except Exception as e:
             messages.error(request, f'Failed to stop {vm.name}: {str(e)}')
     return redirect('range_detail', pk=pk)
+
+@login_required
+def range_grid(request):
+    status_filter = request.GET.get('status', '')
+    search = request.GET.get('search', '')
+
+    deployments = RangeDeployment.objects.filter(
+        user=request.user
+    ).prefetch_related('vms', 'networks', 'range_template__tags')
+
+    if status_filter and status_filter != 'all':
+        if status_filter == 'archived':
+            deployments = deployments.filter(is_archived=True)
+        else:
+            deployments = deployments.filter(
+                status=status_filter, is_archived=False
+            )
+    else:
+        deployments = deployments.filter(is_archived=False)
+
+    if search:
+        deployments = deployments.filter(
+            Q(name__icontains=search) |
+            Q(range_template__name__icontains=search) |
+            Q(range_template__tags__name__icontains=search)
+        ).distinct()
+
+    deployments = deployments.order_by('-created_at')
+
+    for deployment in deployments:
+        if deployment.get_fragmented():
+            deployment.display_status = 'fragmented'
+        else:
+            deployment.display_status = deployment.status
+
+    return render(request, 'ranges/partials/range_grid.html', {
+        'deployments': deployments,
+    })

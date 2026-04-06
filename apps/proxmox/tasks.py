@@ -234,14 +234,55 @@ def _map_proxmox_status(status):
     }
     return mapping.get(status, 'error')
 
-
 def _get_next_vmid(user):
-    """
-    Ask Proxmox for the next available VMID.
-    """
-    proxmox = services.get_proxmox_connection(user)
-    return proxmox.cluster.nextid.get()
+    from apps.ranges.models import DeployedVM, SiteSettings, VMIDLock
+    from django.db import transaction
 
+    with transaction.atomic():
+        # Acquire a database-level lock — only one worker can be here at a time
+        VMIDLock.objects.select_for_update().get(pk=1)
+
+        site_settings = SiteSettings.get()
+        vmid_min = site_settings.proxmox_vmid_min
+        vmid_max = site_settings.proxmox_vmid_max
+
+        proxmox = services.get_proxmox_connection(user)
+
+        cluster_vmids = set()
+        try:
+            nodes = proxmox.nodes.get()
+            for node in nodes:
+                try:
+                    vms = proxmox.nodes(node['node']).qemu.get()
+                    for vm in vms:
+                        cluster_vmids.add(vm['vmid'])
+                except Exception:
+                    pass
+                try:
+                    containers = proxmox.nodes(node['node']).lxc.get()
+                    for ct in containers:
+                        cluster_vmids.add(ct['vmid'])
+                except Exception:
+                    pass
+        except Exception as e:
+            raise Exception(f"Could not fetch cluster VMIDs: {str(e)}")
+
+        db_vmids = set(
+            DeployedVM.objects.filter(
+                proxmox_vmid__isnull=False
+            ).values_list('proxmox_vmid', flat=True)
+        )
+
+        used_vmids = cluster_vmids | db_vmids
+
+        for vmid in range(vmid_min, vmid_max):
+            if vmid not in used_vmids:
+                return vmid
+
+        raise Exception(
+            f"No available VMIDs in range {vmid_min}-{vmid_max}. "
+            f"Consider expanding the range in settings."
+        )
 
 def _wait_for_task(user, node, upid, timeout=300, interval=3):
     """

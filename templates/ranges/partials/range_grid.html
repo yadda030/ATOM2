@@ -1,0 +1,58 @@
+{% load static %}
+
+{% if deployments %}
+<div class="ranges-grid">
+    {% for deployment in deployments %}
+    <div class="range-card">
+        <div class="range-card-header">
+            <div>
+                <div class="range-name">{{ deployment.name }}</div>
+                <div class="range-template">{{ deployment.range_template.name|default:"No template" }}</div>
+            </div>
+            <span class="badge badge-{{ deployment.display_status }}">{{ deployment.display_status|capfirst }}</span>
+        </div>
+        <div class="range-card-body">
+            <div class="range-stats">
+                <div class="range-stat"><span>{{ deployment.total_vms }}</span> VMs</div>
+                <div class="range-stat"><span>{{ deployment.networks.count }}</span> Networks</div>
+                <div class="range-stat">
+                    {% if deployment.proxmox_pool %}
+                    <span>{{ deployment.proxmox_pool }}</span>
+                    {% else %}
+                    No pool
+                    {% endif %}
+                </div>
+            </div>
+            <div class="vm-peek">
+                {% for vm in deployment.vms.all|slice:":4" %}
+                <div class="vm-pill">
+                    <span class="status-dot dot-{{ vm.status }}"></span>
+                    {{ vm.name }}
+                </div>
+                {% empty %}
+                <span style="font-size:12px; color:#b0bec8;">No VMs deployed</span>
+                {% endfor %}
+                {% if deployment.total_vms > 4 %}
+                <div class="vm-pill">+{{ deployment.total_vms|add:"-4" }} more</div>
+                {% endif %}
+            </div>
+            <div class="range-tags">
+                {% for tag in deployment.range_template.tags.all %}
+                <span class="tag">{{ tag.name }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        <div class="range-card-footer">
+            <span class="range-meta">{{ deployment.created_at|timesince }} ago</span>
+            <a href="{% url 'range_detail' deployment.pk %}" class="view-link">
+                {% if deployment.status == 'undeployed' %}Deploy →{% else %}View range →{% endif %}
+            </a>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+{% else %}
+<div class="empty-state">
+    No ranges found. <a href="{% url 'range_deploy' %}">Deploy your first range</a>.
+</div>
+{% endif %}

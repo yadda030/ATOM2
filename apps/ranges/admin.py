@@ -2,7 +2,7 @@ from django.contrib import admin
 from .models import (
     Tag, RangeTemplate, RangeTemplateNetwork,
     VMTemplate, RangeDeployment, RangeNetwork,
-    DeployedVM, DeployedVMConfig
+    DeployedVM, DeployedVMConfig, SiteSettings
 )
 
 
@@ -42,3 +42,14 @@ class DeployedVMAdmin(admin.ModelAdmin):
     list_display = ('name', 'deployment', 'status', 'proxmox_vmid', 'mac_address')
     list_filter = ('status',)
     search_fields = ('name', 'mac_address')
+
+@admin.register(SiteSettings)
+class SiteSettingsAdmin(admin.ModelAdmin):
+    list_display = ('proxmox_vmid_min', 'proxmox_vmid_max')
+
+    def has_add_permission(self, request):
+        # Only allow one instance
+        return not SiteSettings.objects.exists()
+
+    def has_delete_permission(self, request, obj=None):
+        return False

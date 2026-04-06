@@ -155,3 +155,35 @@ class ActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.event_type} - {self.created_at}"
+    
+class SiteSettings(models.Model):
+    proxmox_vmid_min = models.IntegerField(default=200, help_text="Minimum VMID for training VMs")
+    proxmox_vmid_max = models.IntegerField(default=999, help_text="Maximum VMID for training VMs")
+
+    class Meta:
+        verbose_name = 'Site settings'
+        verbose_name_plural = 'Site settings'
+
+    def __str__(self):
+        return f"Site settings (VMID range: {self.proxmox_vmid_min}-{self.proxmox_vmid_max})"
+
+    @classmethod
+    def get(cls):
+        """Always returns the single settings instance, creating it if needed."""
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
+    
+class VMIDLock(models.Model):
+    """
+    Used to serialize VMID allocation across concurrent deployments.
+    Only one record ever exists — it acts as a mutex.
+    """
+    locked_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'VMID lock'
+
+    @classmethod
+    def get(cls):
+        lock, _ = cls.objects.get_or_create(pk=1)
+        return lock

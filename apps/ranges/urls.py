@@ -30,4 +30,6 @@ urlpatterns = [
     path('<int:pk>/delete/', views.range_delete, name='range_delete'),
     path('<int:pk>/vms/<int:vm_pk>/start/', views.vm_start, name='vm_start'),
     path('<int:pk>/vms/<int:vm_pk>/stop/', views.vm_stop, name='vm_stop'),
+
+    path('grid/', views.range_grid, name='range_grid'),
 ]
