@@ -70,3 +70,40 @@ function toggleAddForm(formId, btnId) {
     form.style.display = isHidden ? 'block' : 'none';
     if (btn) btn.style.display = isHidden ? 'none' : 'block';
 }
+
+function addIfaceRow(btn) {
+    const vmPk = btn.dataset.vmPk;
+    const networks = JSON.parse(btn.dataset.networks);
+    const container = document.getElementById(`iface-rows-${vmPk}`);
+    const row = document.createElement('div');
+    row.className = 'iface-row';
+    row.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:end;';
+
+    const networkOptions = networks.map(n =>
+        `<option value="${n.id}">${n.name}</option>`
+    ).join('');
+
+    row.innerHTML = `
+        <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">From template networks</label>
+            <select class="form-input" name="network">
+                <option value="">None</option>
+                ${networkOptions}
+            </select>
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">Or manual vnet</label>
+            <input class="form-input" type="text" name="manual_vnet" placeholder="vnet-name" />
+        </div>
+        <button type="button" class="btn-delete-sm" onclick="removeIfaceRow(this)" style="margin-bottom:0;">×</button>
+    `;
+    container.appendChild(row);
+}
+
+function removeIfaceRow(btn) {
+    const row = btn.closest('.iface-row');
+    const container = row.parentElement;
+    if (container.querySelectorAll('.iface-row').length > 1) {
+        row.remove();
+    }
+}

@@ -63,6 +63,7 @@ def poll_user_vms(user_id):
 @shared_task
 def deploy_range(deployment_id):
     try:
+        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog
         deployment = RangeDeployment.objects.get(id=deployment_id)
         user = deployment.user
 
@@ -73,15 +74,14 @@ def deploy_range(deployment_id):
             if warnings:
                 deployment.status = 'error'
                 deployment.save()
-                from apps.ranges.models import ActivityLog
                 ActivityLog.objects.create(
                     user=user,
                     event_type='deployment_failed',
-                    message=f"Deployment failed validation: {','.join(_sanitize_error(warnings))}"
+                    message=f"Deployment failed validation: {_sanitize_error(', '.join(warnings))}"
                 )
                 return f"Deployment failed validation: {warnings}"
-        except Exception as e:
-            pass  # if validation itself fails, continue with deployment
+        except Exception:
+            pass
 
         deployment.status = 'deploying'
         deployment.save()
@@ -90,8 +90,10 @@ def deploy_range(deployment_id):
 
         for vm_template in vm_templates:
             try:
+                # Get next available VMID
                 newid = _get_next_vmid(user)
 
+                # Clone the VM
                 upid = services.clone_vm(
                     user=user,
                     node=vm_template.node,
@@ -100,11 +102,43 @@ def deploy_range(deployment_id):
                     name=f"{deployment.name}-{vm_template.name}",
                 )
 
+                # Wait for clone to complete
                 _wait_for_task(user, vm_template.node, upid)
 
+                # Configure network interfaces
+                try:
+                    network_interfaces = vm_template.network_interfaces.all()
+                    if network_interfaces:
+                        nic_config = {}
+                        for iface in network_interfaces:
+                            if iface.network:
+                                vnet = iface.network.proxmox_sdn_vnet
+                            elif iface.manual_vnet:
+                                vnet = iface.manual_vnet
+                            else:
+                                continue
+
+                            if vnet:
+                                nic_config[f'net{iface.interface_index}'] = f'virtio,bridge={vnet}'
+
+                        if nic_config:
+                            services.update_vm_config(user, vm_template.node, newid, **nic_config)
+                except Exception as e:
+                    print(f"Warning: Could not configure network interfaces for {vm_template.name}: {e}")
+
+                # Assign to pool if specified
+                if deployment.proxmox_pool:
+                    try:
+                        proxmox = services.get_proxmox_connection(user)
+                        proxmox.pools(deployment.proxmox_pool).put(vms=str(newid))
+                    except Exception as e:
+                        print(f"Warning: Could not add VM to pool: {e}")
+
+                # Get VM config to capture MAC address
                 config = services.get_vm_config(user, vm_template.node, newid)
                 mac_address = _extract_mac(config)
 
+                # Create DeployedVM record
                 deployed_vm = DeployedVM.objects.create(
                     deployment=deployment,
                     vm_template=vm_template,
@@ -115,6 +149,7 @@ def deploy_range(deployment_id):
                     node=vm_template.node,
                 )
 
+                # Render and store config script
                 if vm_template.config_script:
                     rendered_script = _render_script(
                         deployed_vm=deployed_vm,
@@ -126,11 +161,24 @@ def deploy_range(deployment_id):
                         config_script=rendered_script,
                     )
 
+                # Start the VM
                 services.start_vm(user, vm_template.node, newid)
                 deployed_vm.status = 'running'
                 deployed_vm.save()
 
+                ActivityLog.objects.create(
+                    user=user,
+                    event_type='deployment_complete',
+                    message=f"VM '{deployed_vm.name}' deployed successfully (VMID {newid})."
+                )
+
             except Exception as e:
+                print(f"Error deploying VM {vm_template.name}: {e}")
+                ActivityLog.objects.create(
+                    user=user,
+                    event_type='deployment_failed',
+                    message=f"VM '{vm_template.name}' failed: {_sanitize_error(str(e))}"
+                )
                 DeployedVM.objects.filter(
                     deployment=deployment,
                     vm_template=vm_template
@@ -138,6 +186,12 @@ def deploy_range(deployment_id):
 
         deployment.status = 'running'
         deployment.save()
+
+        ActivityLog.objects.create(
+            user=user,
+            event_type='deployment_complete',
+            message=f"Range '{deployment.name}' deployed successfully."
+        )
 
         return f"Deployment {deployment.name} complete"
 
@@ -149,7 +203,7 @@ def deploy_range(deployment_id):
             deployment.save()
         except Exception:
             pass
-        return f"Error deploying range: {str(e)}"
+        return f"Error deploying range: {_sanitize_error(str(e))}"
 
 
 @shared_task

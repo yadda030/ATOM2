@@ -48,6 +48,22 @@ class VMTemplate(models.Model):
     def __str__(self):
         return f"{self.name} ({self.proxmox_template_id})"
 
+class VMTemplateNetwork(models.Model):
+    """
+    A network interface attachment for a VMTemplate.
+    Each record represents one NIC on the VM.
+    """
+    vm_template = models.ForeignKey(VMTemplate, on_delete=models.CASCADE, related_name='network_interfaces')
+    network = models.ForeignKey(RangeTemplateNetwork, on_delete=models.SET_NULL, null=True, blank=True)
+    interface_index = models.IntegerField(default=0, help_text="NIC index e.g. 0=net0, 1=net1")
+    manual_vnet = models.CharField(max_length=255, blank=True, null=True, help_text="Manual vnet if no network selected")
+
+    class Meta:
+        ordering = ['interface_index']
+        unique_together = ('vm_template', 'interface_index')
+
+    def __str__(self):
+        return f"{self.vm_template.name} — net{self.interface_index}"
 
 class RangeDeployment(models.Model):
     STATUS_CHOICES = [

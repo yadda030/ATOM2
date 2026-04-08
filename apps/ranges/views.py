@@ -214,6 +214,21 @@ def vm_add(request, pk):
             vm = form.save(commit=False)
             vm.range_template = template
             vm.save()
+
+            # Add initial network interface if selected
+            network_id = request.POST.get('network')
+            if network_id:
+                try:
+                    from .models import VMTemplateNetwork
+                    network = RangeTemplateNetwork.objects.get(pk=network_id)
+                    VMTemplateNetwork.objects.create(
+                        vm_template=vm,
+                        network=network,
+                        interface_index=0,
+                    )
+                except RangeTemplateNetwork.DoesNotExist:
+                    pass
+
             messages.success(request, 'VM added.')
         else:
             for error in form.errors.values():
@@ -264,6 +279,58 @@ def vm_edit(request, pk, vm_pk):
 
     return redirect('template_step3', pk=pk)
 
+@login_required
+def vm_network_add(request, pk, vm_pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    vm = get_object_or_404(VMTemplate, pk=vm_pk, range_template=template)
+
+    if request.method == 'POST':
+        from .models import VMTemplateNetwork
+        networks = request.POST.getlist('network')
+        manual_vnets = request.POST.getlist('manual_vnet')
+
+        # Get current interface count for indexing
+        existing_count = vm.network_interfaces.count()
+
+        for i, (network_id, manual_vnet) in enumerate(zip(networks, manual_vnets)):
+            network = None
+            if network_id:
+                try:
+                    network = RangeTemplateNetwork.objects.get(pk=network_id)
+                except RangeTemplateNetwork.DoesNotExist:
+                    pass
+
+            # Skip if both are empty
+            if not network and not manual_vnet:
+                continue
+
+            VMTemplateNetwork.objects.create(
+                vm_template=vm,
+                network=network,
+                interface_index=existing_count + i,
+                manual_vnet=manual_vnet or None,
+            )
+
+        messages.success(request, 'Network interfaces saved.')
+
+    return redirect('template_step3', pk=pk)
+
+@login_required
+def vm_network_delete(request, pk, vm_pk, iface_pk):
+    template = get_object_or_404(RangeTemplate, pk=pk, created_by=request.user)
+    vm = get_object_or_404(VMTemplate, pk=vm_pk, range_template=template)
+    from .models import VMTemplateNetwork
+    iface = get_object_or_404(VMTemplateNetwork, pk=iface_pk, vm_template=vm)
+
+    if request.method == 'POST':
+        iface.delete()
+        # Reindex remaining interfaces
+        for i, remaining in enumerate(vm.network_interfaces.all()):
+            remaining.interface_index = i
+            remaining.save()
+        messages.success(request, 'Network interface removed.')
+
+    return redirect('template_step3', pk=pk)
 
 @login_required
 def range_list(request):

@@ -28,7 +28,7 @@
             <span class="optional-label">Optional</span>
         </div>
         <div class="panel-body">
-            <p class="step-hint">Add VMs to your range template. Each VM will be cloned from a Proxmox template when the range is deployed.</p>
+            <p class="step-hint">Add VMs to your range template. Each VM will be cloned from a Proxmox template when the range is deployed. Additional network interfaces can be added after saving a VM.</p>
 
             <!-- Saved VMs -->
             {% for vm in vms %}
@@ -40,6 +40,13 @@
                             VMID {{ vm.proxmox_template_id }} · {{ vm.node }}
                             · {{ vm.cores }} cores · {{ vm.memory }}MB
                             {% if vm.config_script %} · {{ vm.config_script.name }}{% endif %}
+                        </div>
+                        <div class="saved-item-meta">
+                            {% for iface in vm.network_interfaces.all %}
+                            net{{ iface.interface_index }}:
+                            {% if iface.network %}{{ iface.network.name }}{% elif iface.manual_vnet %}{{ iface.manual_vnet }}{% else %}none{% endif %}
+                            {% if not forloop.last %} · {% endif %}
+                            {% endfor %}
                         </div>
                     </div>
                     <div class="saved-item-actions">
@@ -72,11 +79,11 @@
                                 <input class="form-input" type="number" name="proxmox_template_id" value="{{ vm.proxmox_template_id }}" required />
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Network <span class="optional">(optional)</span></label>
-                                <select class="form-input" name="network">
-                                    <option value="">None</option>
-                                    {% for network in networks %}
-                                    <option value="{{ network.pk }}" {% if vm.network == network %}selected{% endif %}>{{ network.name }}</option>
+                                <label class="form-label">Config script <span class="optional">(optional)</span></label>
+                                <select class="form-input" name="config_script">
+                                    <option value="">No script</option>
+                                    {% for script in scripts %}
+                                    <option value="{{ script.pk }}" {% if vm.config_script == script %}selected{% endif %}>{{ script.name }}</option>
                                     {% endfor %}
                                 </select>
                             </div>
@@ -92,15 +99,6 @@
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Config script <span class="optional">(optional)</span></label>
-                            <select class="form-input" name="config_script">
-                                <option value="">No script</option>
-                                {% for script in scripts %}
-                                <option value="{{ script.pk }}" {% if vm.config_script == script %}selected{% endif %}>{{ script.name }}</option>
-                                {% endfor %}
-                            </select>
-                        </div>
-                        <div class="form-group">
                             <label class="form-label">Notes <span class="optional">(optional)</span></label>
                             <input class="form-input" type="text" name="notes" value="{{ vm.notes|default:'' }}" placeholder="Any notes about this VM" />
                         </div>
@@ -109,6 +107,63 @@
                             <button type="button" class="btn-cancel-item" onclick="toggleEditForm('vm-edit-{{ vm.pk }}')">Cancel</button>
                         </div>
                     </form>
+
+                    <!-- Network interfaces -->
+                    <div style="margin-top:16px; padding-top:16px; border-top:0.5px solid #dce6ef;">
+                        <div class="add-form-title" style="margin-bottom:10px;">Network interfaces</div>
+
+                        {% for iface in vm.network_interfaces.all %}
+                        <div class="saved-item" style="margin-bottom:6px;">
+                            <div>
+                                <div class="saved-item-name" style="font-size:13px;">
+                                    net{{ iface.interface_index }} —
+                                    {% if iface.network %}{{ iface.network.name }}
+                                    {% elif iface.manual_vnet %}{{ iface.manual_vnet }}
+                                    {% else %}No network{% endif %}
+                                </div>
+                            </div>
+                            <form method="post" action="{% url 'vm_network_delete' template.pk vm.pk iface.pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-delete-sm">Remove</button>
+                            </form>
+                        </div>
+                        {% empty %}
+                        <div style="font-size:12px; color:#b0bec8; margin-bottom:8px;">No network interfaces added.</div>
+                        {% endfor %}
+
+                        <!-- Multi-row add form -->
+                        <form method="post" action="{% url 'vm_network_add' template.pk vm.pk %}" id="iface-form-{{ vm.pk }}">
+                            {% csrf_token %}
+                            <div id="iface-rows-{{ vm.pk }}">
+                                <div class="iface-row" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:end;">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label class="form-label">From template networks</label>
+                                        <select class="form-input" name="network">
+                                            <option value="">None</option>
+                                            {% for network in networks %}
+                                            <option value="{{ network.pk }}">{{ network.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label class="form-label">Or manual vnet</label>
+                                        <input class="form-input" type="text" name="manual_vnet" placeholder="vnet-name" />
+                                    </div>
+                                    <button type="button" class="btn-delete-sm" onclick="removeIfaceRow(this)" style="margin-bottom:0;">×</button>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <button type="button" class="btn-add" style="width:auto; padding: 6px 14px;"
+                                    data-vm-pk="{{ vm.pk }}"
+                                    data-networks='[{% for n in networks %}{"id":"{{ n.pk }}","name":"{{ n.name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                                    onclick="addIfaceRow(this)">
+                                    + Add another
+                                </button>
+                                <button type="submit" class="btn-save-item">Save interfaces</button>
+                            </div>
+                        </form>
+                    </div>
+                    
                 </div>
             </div>
             {% empty %}
@@ -140,7 +195,7 @@
                                 id="template-id-input" placeholder="Enter VMID" required />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Network <span class="optional">(optional)</span></label>
+                            <label class="form-label">Primary network <span class="optional">(optional)</span></label>
                             <select class="form-input" name="network">
                                 <option value="">None</option>
                                 {% for network in networks %}
@@ -159,20 +214,25 @@
                             <input class="form-input" type="number" name="memory" min="512" value="2048" />
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Config script <span class="optional">(optional)</span></label>
-                        <select class="form-input" name="config_script">
-                            <option value="">No script</option>
-                            {% for script in scripts %}
-                            <option value="{{ script.pk }}">{{ script.name }}</option>
-                            {% endfor %}
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Config script <span class="optional">(optional)</span></label>
+                            <select class="form-input" name="config_script">
+                                <option value="">No script</option>
+                                {% for script in scripts %}
+                                <option value="{{ script.pk }}">{{ script.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Notes <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="text" name="notes" placeholder="Any notes about this VM" />
+                        </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Notes <span class="optional">(optional)</span></label>
-                        <input class="form-input" type="text" name="notes" placeholder="Any notes about this VM" />
+                    <div style="font-size:11px; color:#b0bec8; margin-bottom:14px;">
+                        Additional network interfaces can be added after saving the VM.
                     </div>
-                    <div style="display:flex; gap:10px; margin-top:14px;">
+                    <div style="display:flex; gap:10px;">
                         <button type="submit" class="btn-save-item">Save VM</button>
                         <button type="button" class="btn-cancel-item" onclick="toggleAddForm('add-vm-form', 'add-vm-btn')">Cancel</button>
                     </div>
