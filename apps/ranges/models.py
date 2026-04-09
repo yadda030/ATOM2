@@ -57,6 +57,7 @@ class VMTemplateNetwork(models.Model):
     network = models.ForeignKey(RangeTemplateNetwork, on_delete=models.SET_NULL, null=True, blank=True)
     interface_index = models.IntegerField(default=0, help_text="NIC index e.g. 0=net0, 1=net1")
     manual_vnet = models.CharField(max_length=255, blank=True, null=True, help_text="Manual vnet if no network selected")
+    vlan_tag = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Optional VLAN tag (1–4094)")
 
     class Meta:
         ordering = ['interface_index']

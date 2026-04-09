@@ -77,7 +77,7 @@ function addIfaceRow(btn) {
     const container = document.getElementById(`iface-rows-${vmPk}`);
     const row = document.createElement('div');
     row.className = 'iface-row';
-    row.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:end;';
+    row.style.cssText = 'display:grid; grid-template-columns: 1fr 1fr 80px auto; gap:8px; margin-bottom:8px; align-items:end;';
 
     const networkOptions = networks.map(n =>
         `<option value="${n.id}">${n.name}</option>`
@@ -94,6 +94,10 @@ function addIfaceRow(btn) {
         <div class="form-group" style="margin-bottom:0;">
             <label class="form-label">Or manual vnet</label>
             <input class="form-input" type="text" name="manual_vnet" placeholder="vnet-name" />
+        </div>
+        <div class="form-group" style="margin-bottom:0;">
+            <label class="form-label">VLAN tag</label>
+            <input class="form-input" type="number" name="vlan_tag" placeholder="—" min="1" max="4094" />
         </div>
         <button type="button" class="btn-delete-sm" onclick="removeIfaceRow(this)" style="margin-bottom:0;">×</button>
     `;

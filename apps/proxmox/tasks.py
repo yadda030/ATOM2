@@ -118,8 +118,10 @@ def deploy_range(deployment_id):
                             else:
                                 continue
 
-                            if vnet:
-                                nic_config[f'net{iface.interface_index}'] = f'virtio,bridge={vnet}'
+                            net_str = f'virtio,bridge={vnet}'
+                            if iface.vlan_tag:
+                                net_str += f',tag={iface.vlan_tag}'
+                            nic_config[f'net{iface.interface_index}'] = net_str
 
                         if nic_config:
                             services.update_vm_config(user, vm_template.node, newid, **nic_config)

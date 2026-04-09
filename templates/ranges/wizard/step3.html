@@ -45,6 +45,7 @@
                             {% for iface in vm.network_interfaces.all %}
                             net{{ iface.interface_index }}:
                             {% if iface.network %}{{ iface.network.name }}{% elif iface.manual_vnet %}{{ iface.manual_vnet }}{% else %}none{% endif %}
+                            {% if iface.vlan_tag %} (VLAN {{ iface.vlan_tag }}){% endif %}
                             {% if not forloop.last %} · {% endif %}
                             {% endfor %}
                         </div>
@@ -120,6 +121,7 @@
                                     {% if iface.network %}{{ iface.network.name }}
                                     {% elif iface.manual_vnet %}{{ iface.manual_vnet }}
                                     {% else %}No network{% endif %}
+                                    {% if iface.vlan_tag %} (VLAN {{ iface.vlan_tag }}){% endif %}
                                 </div>
                             </div>
                             <form method="post" action="{% url 'vm_network_delete' template.pk vm.pk iface.pk %}" style="display:inline;">
@@ -135,7 +137,7 @@
                         <form method="post" action="{% url 'vm_network_add' template.pk vm.pk %}" id="iface-form-{{ vm.pk }}">
                             {% csrf_token %}
                             <div id="iface-rows-{{ vm.pk }}">
-                                <div class="iface-row" style="display:grid; grid-template-columns: 1fr 1fr auto; gap:8px; margin-bottom:8px; align-items:end;">
+                                <div class="iface-row" style="display:grid; grid-template-columns: 1fr 1fr 80px auto; gap:8px; margin-bottom:8px; align-items:end;">
                                     <div class="form-group" style="margin-bottom:0;">
                                         <label class="form-label">From template networks</label>
                                         <select class="form-input" name="network">
@@ -148,6 +150,10 @@
                                     <div class="form-group" style="margin-bottom:0;">
                                         <label class="form-label">Or manual vnet</label>
                                         <input class="form-input" type="text" name="manual_vnet" placeholder="vnet-name" />
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label class="form-label">VLAN tag</label>
+                                        <input class="form-input" type="number" name="vlan_tag" placeholder="—" min="1" max="4094" />
                                     </div>
                                     <button type="button" class="btn-delete-sm" onclick="removeIfaceRow(this)" style="margin-bottom:0;">×</button>
                                 </div>
@@ -163,7 +169,7 @@
                             </div>
                         </form>
                     </div>
-                    
+
                 </div>
             </div>
             {% empty %}
@@ -195,11 +201,11 @@
                                 id="template-id-input" placeholder="Enter VMID" required />
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Primary network <span class="optional">(optional)</span></label>
-                            <select class="form-input" name="network">
-                                <option value="">None</option>
-                                {% for network in networks %}
-                                <option value="{{ network.pk }}">{{ network.name }}</option>
+                            <label class="form-label">Config script <span class="optional">(optional)</span></label>
+                            <select class="form-input" name="config_script">
+                                <option value="">No script</option>
+                                {% for script in scripts %}
+                                <option value="{{ script.pk }}">{{ script.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
@@ -216,14 +222,20 @@
                     </div>
                     <div class="form-row">
                         <div class="form-group">
-                            <label class="form-label">Config script <span class="optional">(optional)</span></label>
-                            <select class="form-input" name="config_script">
-                                <option value="">No script</option>
-                                {% for script in scripts %}
-                                <option value="{{ script.pk }}">{{ script.name }}</option>
+                            <label class="form-label">Primary network <span class="optional">(optional)</span></label>
+                            <select class="form-input" name="network">
+                                <option value="">None</option>
+                                {% for network in networks %}
+                                <option value="{{ network.pk }}">{{ network.name }}</option>
                                 {% endfor %}
                             </select>
                         </div>
+                        <div class="form-group">
+                            <label class="form-label">VLAN tag <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="number" name="primary_vlan_tag" placeholder="—" min="1" max="4094" />
+                        </div>
+                    </div>
+                    <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Notes <span class="optional">(optional)</span></label>
                             <input class="form-input" type="text" name="notes" placeholder="Any notes about this VM" />
