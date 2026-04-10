@@ -140,3 +140,13 @@ def script_delete(request, pk):
         script.delete()
         messages.success(request, 'Script deleted.')
     return redirect('script_list')
+
+def serve_script_raw(request, identifier):
+    # Try PK first, then fall back to name
+    try:
+        pk = int(identifier)
+        script = get_object_or_404(Script, pk=pk, visibility__in=('public_view', 'public_edit'))
+    except ValueError:
+        script = get_object_or_404(Script, name=identifier, visibility__in=('public_view', 'public_edit'))
+
+    return HttpResponse(script.content, content_type='text/plain')

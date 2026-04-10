@@ -18,7 +18,7 @@
             </div>
         </div>
         <div style="display:flex; gap:10px; align-items:center;">
-            <span class="badge badge-{{ deployment.status }}">{{ deployment.get_status_display }}</span>
+            <span class="badge badge-{{ deployment.status }}" id="deployment-badge">{{ deployment.get_status_display }}</span>
             {% if deployment.status == 'stopped' %}
             <form method="post" action="{% url 'range_start' deployment.pk %}" style="display:inline;">
                 {% csrf_token %}
@@ -80,7 +80,7 @@
             {% if vms %}
             <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:12px;">
                 {% for vm in vms %}
-                <div class="vm-detail-card">
+                <div class="vm-detail-card" id="vm-card-{{ vm.id }}">
                     <div class="vm-detail-header">
                         <div>
                             <div class="vm-detail-name">{{ vm.name }}</div>
@@ -93,7 +93,7 @@
                                 {% endif %}
                             </div>
                         </div>
-                        <span class="badge badge-{{ vm.status }}">{{ vm.get_status_display }}</span>
+                        <span class="badge badge-{{ vm.status }}" id="vm-badge-{{ vm.id }}">{{ vm.get_status_display }}</span>
                     </div>
                     {% if vm.mac_address %}
                     <div class="vm-detail-mac">MAC: {{ vm.mac_address }}</div>
@@ -107,7 +107,12 @@
                         {% endif %}
                     </div>
                     {% endif %}
-                    <div class="vm-detail-actions">
+                    <div class="vm-detail-actions" id="vm-actions-{{ vm.id }}"
+                        data-vm-pk="{{ vm.pk }}"
+                        data-deployment-pk="{{ deployment.pk }}"
+                        data-start-url="{% url 'vm_start' deployment.pk vm.pk %}"
+                        data-stop-url="{% url 'vm_stop' deployment.pk vm.pk %}"
+                        data-csrf="{{ csrf_token }}">
                         {% if vm.status == 'stopped' %}
                         <form method="post" action="{% url 'vm_start' deployment.pk vm.pk %}" style="display:inline;">
                             {% csrf_token %}
@@ -130,4 +135,16 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<div id="range-detail-config"
+     data-deployment-id="{{ deployment.id }}"
+     style="display:none;">
+</div>
+<script>
+    const DEPLOYMENT_ID = parseInt(document.getElementById('range-detail-config').dataset.deploymentId);
+</script>
+<script src="{% static 'js/range_detail.js' %}"></script>
 {% endblock %}

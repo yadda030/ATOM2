@@ -5,6 +5,8 @@ from apps.ranges.models import RangeDeployment, DeployedVM
 from apps.config_server.models import MachineConfig
 from . import services
 import time
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 User = get_user_model()
 
@@ -23,42 +25,98 @@ def poll_all_users():
 
 @shared_task
 def poll_user_vms(user_id):
-    """
-    Poll Proxmox for all deployed VMs belonging to a user
-    and update their status in the database.
-    """
     try:
         user = User.objects.get(id=user_id)
 
         if not user.has_proxmox_credentials():
             return "User has no Proxmox credentials"
 
-        # Get all active deployments for this user
         deployments = RangeDeployment.objects.filter(
             user=user,
             status__in=['deploying', 'running', 'stopped']
         )
+
+        channel_layer = get_channel_layer()
 
         for deployment in deployments:
             for vm in deployment.vms.all():
                 if not vm.proxmox_vmid:
                     continue
 
+                previous_status = vm.status
+
                 try:
                     status = services.get_vm_status(user, vm.node, vm.proxmox_vmid)
                     vm.status = _map_proxmox_status(status.get('status'))
                     vm.save()
                 except Exception as e:
-                    vm.status = 'error'
+                    error_msg = str(e)
+                    # 500/404 from Proxmox means the VM no longer exists on the cluster
+                    if '500' in error_msg or '404' in error_msg or 'does not exist' in error_msg:
+                        vm.status = 'error'
+                    else:
+                        # Connectivity issue — don't flip to error, leave status as-is
+                        # so a transient Proxmox blip doesn't falsely fragment a range
+                        pass
                     vm.save()
+                
+                # Push to browser whenever status changes
+                if vm.status != previous_status:
+                    try:
+                        async_to_sync(channel_layer.group_send)(
+                            f'dashboard_{user.id}',
+                            {
+                                'type': 'vm_status_update',
+                                'data': {
+                                    'vm_id': vm.id,
+                                    'deployment_id': deployment.id,
+                                    'status': vm.status,
+                                    'status_display': vm.get_status_display(),
+                                }
+                            }
+                        )
+                    except Exception:
+                        pass
+            
+            vm_statuses = set(deployment.vms.values_list('status', flat=True))
 
+            if not vm_statuses:
+                # No VMs yet — leave deployment status alone
+                continue
+
+            if vm_statuses == {'running'}:
+                new_deployment_status = 'running'
+            elif vm_statuses == {'stopped'}:
+                new_deployment_status = 'stopped'
+            else:
+                new_deployment_status = 'fragmented'
+
+            if deployment.status != new_deployment_status:
+                deployment.status = new_deployment_status
+                deployment.save()
+
+                # Push deployment status update to browser too
+                try:
+                    async_to_sync(channel_layer.group_send)(
+                        f'dashboard_{user.id}',
+                        {
+                            'type': 'vm_status_update',
+                            'data': {
+                                'deployment_id': deployment.id,
+                                'deployment_status': new_deployment_status,
+                                'deployment_status_display': deployment.get_status_display(),
+                            }
+                        }
+                    )
+                except Exception:
+                    pass
+        
         return f"Polled VMs for user {user.username}"
 
     except User.DoesNotExist:
         return f"User {user_id} not found"
     except Exception as e:
         return f"Error polling VMs: {str(e)}"
-
 
 @shared_task
 def deploy_range(deployment_id):

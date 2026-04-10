@@ -7,4 +7,5 @@ urlpatterns = [
     path('scripts/new/', views.script_edit, name='script_new'),
     path('scripts/<int:pk>/edit/', views.script_edit, name='script_edit'),
     path('scripts/<int:pk>/delete/', views.script_delete, name='script_delete'),
+    path('scripts/raw/<str:identifier>/', views.serve_script_raw, name='serve_script_raw'),
 ]
