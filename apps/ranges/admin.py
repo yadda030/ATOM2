@@ -8,7 +8,7 @@ from .models import (
     Tag, RangeTemplate, RangeTemplateNetwork,
     VMTemplate, RangeDeployment, RangeNetwork,
     DeployedVM, DeployedVMConfig, SiteSettings,
-    ActivityLog,
+    ActivityLog, DeployedVMNIC,
 )
 
 
@@ -136,11 +136,19 @@ class RangeDeploymentAdmin(admin.ModelAdmin):
     admin_actions.short_description = 'Actions'
 
 
+class DeployedVMNICInline(admin.TabularInline):
+    model = DeployedVMNIC
+    fields = ('interface_index', 'mac_address')
+    readonly_fields = ('interface_index', 'mac_address')
+    extra = 0
+    can_delete = False
+
 @admin.register(DeployedVM)
 class DeployedVMAdmin(admin.ModelAdmin):
     list_display = ('name', 'deployment', 'user_link', 'status', 'proxmox_vmid', 'mac_address')
     list_filter = ('status',)
     search_fields = ('name', 'mac_address', 'deployment__user__username')
+    inlines = [DeployedVMNICInline]
 
     def user_link(self, obj):
         return obj.deployment.user.username

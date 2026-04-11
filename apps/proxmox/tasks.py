@@ -2,6 +2,7 @@ from celery import shared_task
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from apps.ranges.models import RangeDeployment, DeployedVM
+from apps.ranges.models import DeployedVMNIC
 from apps.config_server.models import MachineConfig
 from . import services
 import time
@@ -196,7 +197,10 @@ def deploy_range(deployment_id):
 
                 # Get VM config to capture MAC address
                 config = services.get_vm_config(user, vm_template.node, newid)
-                mac_address = _extract_mac(config)
+                all_macs = _extract_all_macs(config)
+
+                # net0 MAC is used as the primary MAC for script check-in
+                primary_mac = all_macs.get(0)
 
                 # Create DeployedVM record
                 deployed_vm = DeployedVM.objects.create(
@@ -204,23 +208,30 @@ def deploy_range(deployment_id):
                     vm_template=vm_template,
                     name=f"{deployment.name}-{vm_template.name}",
                     proxmox_vmid=newid,
-                    mac_address=mac_address,
+                    mac_address=primary_mac,
                     status='stopped',
                     node=vm_template.node,
                 )
 
-                # Render and store config script
-                if vm_template.config_script:
+                # Store all NIC MACs
+                for index, mac in all_macs.items():
+                    DeployedVMNIC.objects.create(
+                        deployed_vm=deployed_vm,
+                        interface_index=index,
+                        mac_address=mac,
+                    )
+
+                # Render and store config script (keyed to primary/net0 MAC)
+                if vm_template.config_script and primary_mac:
                     rendered_script = _render_script(
                         deployed_vm=deployed_vm,
                         script=vm_template.config_script,
                     )
                     MachineConfig.objects.create(
                         deployed_vm=deployed_vm,
-                        mac_address=mac_address,
+                        mac_address=primary_mac,
                         config_script=rendered_script,
                     )
-
                 # Start the VM
                 services.start_vm(user, vm_template.node, newid)
                 deployed_vm.status = 'running'
@@ -415,21 +426,26 @@ def _wait_for_task(user, node, upid, timeout=300, interval=3):
     raise Exception(f"Proxmox task timed out after {timeout}s")
 
 
-def _extract_mac(config):
+def _extract_all_macs(config):
     """
-    Extract MAC address from Proxmox VM config.
-    Proxmox stores network config as 'virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0'
+    Extract all NIC MAC addresses from Proxmox VM config.
+    Returns a dict of {interface_index: mac_address}.
     """
+    macs = {}
     for key, value in config.items():
         if key.startswith('net'):
+            try:
+                index = int(key[3:])
+            except ValueError:
+                continue
             parts = value.split(',')
             for part in parts:
                 if '=' in part:
                     k, v = part.split('=', 1)
                     if k in ('virtio', 'e1000', 'vmxnet3', 'rtl8139'):
-                        return v.upper()
-    return None
-
+                        macs[index] = v.upper()
+                        break
+    return macs
 
 def _render_script(deployed_vm, script):
     """

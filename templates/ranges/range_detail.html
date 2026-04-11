@@ -95,8 +95,12 @@
                         </div>
                         <span class="badge badge-{{ vm.status }}" id="vm-badge-{{ vm.id }}">{{ vm.get_status_display }}</span>
                     </div>
-                    {% if vm.mac_address %}
-                    <div class="vm-detail-mac">MAC: {{ vm.mac_address }}</div>
+                    {% if vm.nics.all %}
+                        {% for nic in vm.nics.all %}
+                        <div class="vm-detail-mac">net{{ nic.interface_index }}: {{ nic.mac_address }}</div>
+                        {% endfor %}
+                    {% elif vm.mac_address %}
+                        <div class="vm-detail-mac">net0: {{ vm.mac_address }}</div>
                     {% endif %}
                     {% if vm.machine_config %}
                     <div class="vm-detail-checkin">

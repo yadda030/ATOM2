@@ -204,3 +204,15 @@ class VMIDLock(models.Model):
     def get(cls):
         lock, _ = cls.objects.get_or_create(pk=1)
         return lock
+    
+class DeployedVMNIC(models.Model):
+    deployed_vm = models.ForeignKey(DeployedVM, on_delete=models.CASCADE, related_name='nics')
+    interface_index = models.IntegerField(help_text="NIC index e.g. 0=net0, 1=net1")
+    mac_address = models.CharField(max_length=17)
+
+    class Meta:
+        ordering = ['interface_index']
+        unique_together = ('deployed_vm', 'interface_index')
+
+    def __str__(self):
+        return f"{self.deployed_vm.name} — net{self.interface_index} ({self.mac_address})"
