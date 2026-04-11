@@ -1,0 +1,107 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'css/cluster_overview.css' %}">
+{% endblock %}
+
+{% block content %}
+
+
+<a class="overview-link" href="{% url 'admin:index' %}">← Back to admin</a>
+
+<!-- Stat cards -->
+<div class="overview-grid">
+  <div class="stat-card">
+    <div class="stat-label">Total users</div>
+    <div class="stat-value">{{ total_users }}</div>
+    <div class="stat-sub">{{ active_users }} active · {{ users_with_proxmox }} with Proxmox</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Deployments</div>
+    <div class="stat-value">{{ total_deployments }}</div>
+    <div class="stat-sub">{{ running_deployments }} running · {{ stopped_deployments }} stopped · {{ error_deployments }} error</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Deployed VMs</div>
+    <div class="stat-value">{{ total_vms }}</div>
+    <div class="stat-sub">{{ running_vms }} running · {{ stopped_vms }} stopped · {{ error_vms }} error</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-label">Proxmox nodes</div>
+    <div class="stat-value">{{ nodes_data|length }}</div>
+    <div class="stat-sub">
+      {% if proxmox_error %}Connection error{% else %}{{ nodes_data|length }} reachable{% endif %}
+    </div>
+  </div>
+</div>
+
+<!-- Proxmox nodes -->
+<div class="section-title">Proxmox nodes</div>
+
+{% if proxmox_error %}
+<div class="error-box">{{ proxmox_error }}</div>
+{% elif nodes_data %}
+<div class="nodes-grid">
+  {% for node in nodes_data %}
+  <div class="node-card">
+    <div class="node-name">
+      <span class="node-status-dot {% if node.status == 'online' %}dot-online{% else %}dot-error{% endif %}"></span>
+      {{ node.name }}
+    </div>
+    <div class="meter-label">
+      <span>CPU</span>
+      <span>{{ node.cpu_percent }}%</span>
+    </div>
+    <div class="meter">
+        <div class="meter-fill" data-width="{{ node.cpu_width }}" data-colour="{{ node.cpu_colour }}"></div>
+    </div>
+    <div class="meter">
+        <div class="meter-fill" data-width="{{ node.mem_width }}" data-colour="{{ node.mem_colour }}"></div>
+    </div>
+    </div>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<p style="color:#888; font-size:13px;">No nodes found.</p>
+{% endif %}
+
+<!-- Recent activity -->
+<div class="section-title">Recent activity</div>
+{% if recent_activity %}
+<table class="activity-table">
+  <thead>
+    <tr>
+      <th>Event</th>
+      <th>User</th>
+      <th>Message</th>
+      <th>Time</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for log in recent_activity %}
+    <tr>
+      <td>
+        <span class="event-badge event-{{ log.event_type }}">
+          {{ log.get_event_type_display }}
+        </span>
+      </td>
+      <td>{{ log.user.username|default:"—" }}</td>
+      <td style="max-width:400px; word-break:break-word;">{{ log.message }}</td>
+      <td style="white-space:nowrap; color:#888;">{{ log.created_at|timesince }} ago</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p style="color:#888; font-size:13px;">No activity yet.</p>
+{% endif %}
+<script>
+document.querySelectorAll('.meter-fill').forEach(function(el) {
+    el.style.width = el.dataset.width;
+    el.style.background = el.dataset.colour;
+});
+</script>
+{% endblock %}
