@@ -83,6 +83,71 @@
     border-color: #1a2535;
 }
 
+/* Import form */
+.add-form {
+    background: #f5f8fb;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    padding: 18px 20px;
+    margin-bottom: 16px;
+}
+
+.add-form-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1a2535;
+    margin-bottom: 14px;
+}
+
+.btn-save-item {
+    background: #1a2535;
+    color: #a8d4e8;
+    border: none;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-save-item:hover { background: #243347; }
+
+.btn-cancel-item {
+    background: transparent;
+    color: #8a9bb0;
+    border: 0.5px solid #dce6ef;
+    border-radius: 6px;
+    padding: 8px 18px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.btn-cancel-item:hover { color: #1a2535; border-color: #b0bec8; }
+
+/* File input styling */
+input[type="file"].form-input {
+    padding: 6px 10px;
+    cursor: pointer;
+    color: #8a9bb0;
+}
+
+input[type="file"].form-input::file-selector-button {
+    background: #1a2535;
+    color: #a8d4e8;
+    border: none;
+    border-radius: 5px;
+    padding: 5px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    margin-right: 10px;
+}
+
+input[type="file"].form-input::file-selector-button:hover {
+    background: #243347;
+}
+
 /* Script grid */
 .script-grid {
     display: grid;
@@ -164,6 +229,8 @@
     display: flex;
     gap: 8px;
     margin-top: 14px;
+    flex-wrap: wrap;
+    align-items: center;
 }
 
 .btn-sm {
@@ -173,10 +240,19 @@
     cursor: pointer;
     border: 0.5px solid;
     text-decoration: none;
+    display: inline-block;
 }
 
 .btn-edit { background: #f5f8fb; color: #1a2535; border-color: #dce6ef; }
 .btn-delete { background: #fcebeb; color: #a32d2d; border-color: #f7c1c1; }
+.btn-sm.btn-outline {
+    background: transparent;
+    color: #8a9bb0;
+    border-color: #dce6ef;
+    padding: 5px 12px;
+    font-size: 12px;
+}
+.btn-sm.btn-outline:hover { color: #1a2535; border-color: #b0bec8; }
 
 /* Empty state */
 .empty-state {
@@ -414,6 +490,7 @@
     border-radius: 10px;
     overflow: hidden;
     height: fit-content;
+    transition: all 0.2s ease;
 }
 
 .guide-header {
@@ -429,9 +506,24 @@
     letter-spacing: 0.5px;
     cursor: pointer;
     user-select: none;
+    white-space: nowrap;
+    overflow: hidden;
 }
 
-.guide-toggle { color: #a8d4e8; font-size: 14px; }
+.guide-panel.collapsed .guide-header {
+    justify-content: center;
+    padding: 10px;
+    border-bottom: none;
+}
+
+.guide-panel.collapsed .guide-title { display: none; }
+.guide-panel.collapsed .guide-body  { display: none; }
+
+.guide-toggle {
+    color: #a8d4e8;
+    font-size: 14px;
+    flex-shrink: 0;
+}
 
 .guide-body { padding: 14px 16px; }
 
@@ -467,63 +559,8 @@
     margin: 12px 0;
 }
 
-.guide-panel {
-    background: #ffffff;
-    border: 0.5px solid #dce6ef;
-    border-radius: 10px;
-    overflow: hidden;
-    height: fit-content;
-    transition: all 0.2s ease;
-}
-
-.guide-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 10px 16px;
-    border-bottom: 0.5px solid #dce6ef;
-    font-size: 12px;
-    font-weight: 500;
-    color: #8a9bb0;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
-    cursor: pointer;
-    user-select: none;
-    white-space: nowrap;
-    overflow: hidden;
-}
-
-.guide-panel.collapsed .guide-header {
-    justify-content: center;
-    padding: 10px;
-    border-bottom: none;
-}
-
-.guide-panel.collapsed .guide-title {
-    display: none;
-}
-
-.guide-panel.collapsed .guide-body {
-    display: none;
-}
-
-.guide-toggle {
-    color: #a8d4e8;
-    font-size: 14px;
-    flex-shrink: 0;
-}
-
-.guide-panel.collapsed .guide-header {
-    justify-content: center;
-    padding: 10px 0;
-    border-bottom: none;
-    width: 36px;
-}
-
 /* View only mode */
-.form-readonly {
-    pointer-events: none;
-}
+.form-readonly { pointer-events: none; }
 
 .form-readonly .form-input {
     background: #f0f4f8;
@@ -547,18 +584,8 @@
     color: #8a9bb0;
 }
 
-.form-readonly .tag-remove {
-    display: none;
-}
+.form-readonly .tag-remove  { display: none; }
+.form-readonly .btn-add-var { display: none; }
+.form-readonly .btn-remove  { display: none; }
 
-.form-readonly .btn-add-var {
-    display: none;
-}
-
-.form-readonly .btn-remove {
-    display: none;
-}
-
-.form-readonly .guide-header {
-    pointer-events: all;
-}
+.form-readonly .guide-header { pointer-events: all; }

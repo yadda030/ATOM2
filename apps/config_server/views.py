@@ -7,6 +7,7 @@ from django.forms import formset_factory
 from .models import Script, ScriptVariable, MachineConfig
 from .forms import ScriptForm, ScriptVariableForm
 from apps.ranges.models import Tag
+import json
 
 
 def serve_script(request, mac_address):
@@ -150,3 +151,104 @@ def serve_script_raw(request, identifier):
         script = get_object_or_404(Script, name=identifier, visibility__in=('public_view', 'public_edit'))
 
     return HttpResponse(script.content, content_type='text/plain')
+
+@login_required
+def script_export(request, pk):
+    script = get_object_or_404(Script, pk=pk)
+
+    if not script.is_visible_to(request.user):
+        messages.error(request, 'You do not have permission to export this script.')
+        return redirect('script_list')
+
+    payload = {
+        'atom2_export': True,
+        'version': 1,
+        'name': script.name,
+        'description': script.description or '',
+        'script_type': script.script_type,
+        'visibility': script.visibility,
+        'tags': list(script.tags.values_list('name', flat=True)),
+        'variables': [
+            {
+                'key': v.key,
+                'variable_type': v.variable_type,
+                'default_value': v.default_value or '',
+                'description': v.description or '',
+                'required': v.required,
+            }
+            for v in script.variables.filter(is_system=False)
+        ],
+        'content': script.content,
+    }
+
+    filename = script.name.replace(' ', '_').lower() + '.json'
+    response = HttpResponse(
+        json.dumps(payload, indent=2),
+        content_type='application/json',
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    return response
+
+
+@login_required
+def script_import(request):
+    if request.method != 'POST':
+        return redirect('script_list')
+
+    uploaded_file = request.FILES.get('import_file')
+    if not uploaded_file:
+        messages.error(request, 'No file uploaded.')
+        return redirect('script_list')
+
+    try:
+        payload = json.loads(uploaded_file.read().decode('utf-8'))
+    except (json.JSONDecodeError, UnicodeDecodeError):
+        messages.error(request, 'Invalid file — could not parse JSON.')
+        return redirect('script_list')
+
+    if not payload.get('atom2_export'):
+        messages.error(request, 'Invalid file — not an Atom2 script export.')
+        return redirect('script_list')
+
+    # Resolve name collision
+    name = payload.get('name', 'Imported Script')
+    if Script.objects.filter(name=name).exists():
+        name = f"{name} (imported)"
+        # Keep incrementing if still colliding
+        counter = 2
+        base_name = name
+        while Script.objects.filter(name=name).exists():
+            name = f"{base_name} {counter}"
+            counter += 1
+
+    # Create script — always private on import
+    script = Script.objects.create(
+        name=name,
+        description=payload.get('description', ''),
+        script_type=payload.get('script_type', 'config'),
+        content=payload.get('content', ''),
+        created_by=request.user,
+        visibility='private',
+    )
+
+    # Tags
+    for tag_name in payload.get('tags', []):
+        tag_name = tag_name.strip()
+        if tag_name:
+            tag, _ = Tag.objects.get_or_create(name=tag_name)
+            script.tags.add(tag)
+
+    # Variables
+    for var in payload.get('variables', []):
+        ScriptVariable.objects.create(
+            script=script,
+            key=var.get('key', ''),
+            variable_type=var.get('variable_type', 'string'),
+            default_value=var.get('default_value', '') or None,
+            description=var.get('description', '') or None,
+            required=var.get('required', True),
+            is_system=False,
+        )
+
+    messages.success(request, f'Script "{name}" imported successfully.')
+    return redirect('script_list')
