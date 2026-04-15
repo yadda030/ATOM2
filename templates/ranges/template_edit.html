@@ -1,0 +1,126 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — {% if template %}Edit{% else %}New{% endif %} Template{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">
+            {% if template %}
+                {% if can_edit %}Edit template{% else %}View template{% endif %}
+            {% else %}
+                New range template
+            {% endif %}
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'template_list' %}" class="btn-outline">
+                {% if can_edit %}Cancel{% else %}Back{% endif %}
+            </a>
+            {% if can_edit %}
+            <button onclick="saveTemplate()" class="btn-primary">Save template</button>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <form id="template-form" method="post" {% if not can_edit %}class="form-readonly"{% endif %}>
+        {% csrf_token %}
+        <input type="hidden" name="networks_data" id="networks_data" value="[]" />
+        <input type="hidden" name="vms_data" id="vms_data" value="[]" />
+
+        <!-- Template info -->
+        <div class="panel">
+            <div class="panel-header">Template info</div>
+            <div class="panel-body">
+                <div class="form-row" style="margin-bottom: 14px;">
+                    <div class="form-group">
+                        <label class="form-label">Template name <span class="required">*</span></label>
+                        <input class="form-input" type="text" name="name" value="{{ form.name.value|default:'' }}" placeholder="e.g. Windows AD Lab" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Visibility</label>
+                        <select class="form-input" name="is_public">
+                            <option value="False" {% if not form.is_public.value %}selected{% endif %}>Private</option>
+                            <option value="True" {% if form.is_public.value %}selected{% endif %}>Public</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row">
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <input class="form-input" type="text" name="description" value="{{ form.description.value|default:'' }}" placeholder="Brief description of this range" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tags</label>
+                        <div class="tags-wrap" id="tags-wrap">
+                            {% if form.tags.value %}
+                                {% for tag in form.tags.value %}
+                                <span class="tag">{{ tag }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
+                                {% endfor %}
+                            {% endif %}
+                            <input class="tag-input" id="tag-input" placeholder="Add tag..." />
+                        </div>
+                        <input type="hidden" name="tags" id="tags-hidden" value="{{ form.tags.value|default:'' }}" />
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs -->
+        <div class="tabs">
+            <div class="tab active" onclick="showTab('networks')">
+                Networks <span class="tab-count" id="network-count">0</span>
+            </div>
+            <div class="tab" onclick="showTab('vms')">
+                Virtual machines <span class="tab-count" id="vm-count">0</span>
+            </div>
+        </div>
+
+        <!-- Networks tab -->
+        <div class="tab-content" id="tab-networks">
+            <div id="networks-container"></div>
+            {% if can_edit %}
+            <button type="button" class="btn-add" onclick="addNetwork()">+ Add network</button>
+            {% endif %}
+        </div>
+
+        <!-- VMs tab -->
+        <div class="tab-content" id="tab-vms" style="display:none;">
+            <div id="vms-container"></div>
+            {% if can_edit %}
+            <button type="button" class="btn-add" onclick="addVM()">+ Add VM</button>
+            {% endif %}
+        </div>
+
+    </form>
+</div>
+
+    <!-- Data bridge for JavaScript -->
+    <div id="template-config"
+        data-can-edit="{{ can_edit_json }}"
+        data-proxmox-nodes="{{ proxmox_nodes }}"
+        data-proxmox-templates="{{ proxmox_templates }}"
+        data-proxmox-sdn-zones="{{ proxmox_sdn_zones }}"
+        data-proxmox-sdn-vnets="{{ proxmox_sdn_vnets }}"
+        data-scripts="{{ scripts_json }}"
+        data-networks="{{ networks_json }}"
+        data-vms="{{ vms_json }}"
+        style="display:none;">
+    </div>
+
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/template_edit.js' %}"></script>
+{% endblock %}

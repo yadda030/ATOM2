@@ -1,0 +1,50 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Ranges{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">Ranges</div>
+        <a href="{% url 'range_deploy' %}" class="btn-primary">+ Deploy range</a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <!-- Filter bar -->
+    <form method="get" class="filter-bar">
+        <input class="search-input" type="text" name="search"
+            value="{{ search }}" placeholder="Search by name, template, tag..." />
+        <div class="filter-divider"></div>
+        <span class="filter-label">Status</span>
+        <button type="submit" name="status" value="" class="filter-btn {% if not status_filter %}active{% endif %}">All</button>
+        <button type="submit" name="status" value="running" class="filter-btn {% if status_filter == 'running' %}active{% endif %}">Running</button>
+        <button type="submit" name="status" value="stopped" class="filter-btn {% if status_filter == 'stopped' %}active{% endif %}">Stopped</button>
+        <button type="submit" name="status" value="undeployed" class="filter-btn {% if status_filter == 'undeployed' %}active{% endif %}">Undeployed</button>
+        <button type="submit" name="status" value="fragmented" class="filter-btn {% if status_filter == 'fragmented' %}active{% endif %}">Fragmented</button>
+        <button type="submit" name="status" value="archived" class="filter-btn {% if status_filter == 'archived' %}active{% endif %}">Archived</button>
+    </form>
+
+    {% if deployments %}
+    <div id="ranges-grid"
+        hx-get="{% url 'range_grid' %}?status={{ status_filter }}&search={{ search }}"
+        hx-trigger="load, every 5s"
+        hx-swap="innerHTML">
+        {% include 'ranges/partials/range_grid.html' %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No ranges found. <a href="{% url 'range_deploy' %}">Deploy your first range</a>.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

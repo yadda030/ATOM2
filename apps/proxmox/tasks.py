@@ -2,9 +2,12 @@ from celery import shared_task
 from django.contrib.auth import get_user_model
 from django.utils import timezone
 from apps.ranges.models import RangeDeployment, DeployedVM
+from apps.ranges.models import DeployedVMNIC
 from apps.config_server.models import MachineConfig
 from . import services
 import time
+from channels.layers import get_channel_layer
+from asgiref.sync import async_to_sync
 
 User = get_user_model()
 
@@ -23,35 +26,92 @@ def poll_all_users():
 
 @shared_task
 def poll_user_vms(user_id):
-    """
-    Poll Proxmox for all deployed VMs belonging to a user
-    and update their status in the database.
-    """
     try:
         user = User.objects.get(id=user_id)
 
         if not user.has_proxmox_credentials():
             return "User has no Proxmox credentials"
 
-        # Get all active deployments for this user
         deployments = RangeDeployment.objects.filter(
             user=user,
             status__in=['deploying', 'running', 'stopped']
         )
+
+        channel_layer = get_channel_layer()
 
         for deployment in deployments:
             for vm in deployment.vms.all():
                 if not vm.proxmox_vmid:
                     continue
 
+                previous_status = vm.status
+
                 try:
                     status = services.get_vm_status(user, vm.node, vm.proxmox_vmid)
                     vm.status = _map_proxmox_status(status.get('status'))
                     vm.save()
                 except Exception as e:
-                    vm.status = 'error'
+                    error_msg = str(e)
+                    # 500/404 from Proxmox means the VM no longer exists on the cluster
+                    if '500' in error_msg or '404' in error_msg or 'does not exist' in error_msg:
+                        vm.status = 'error'
+                    else:
+                        # Connectivity issue — don't flip to error, leave status as-is
+                        # so a transient Proxmox blip doesn't falsely fragment a range
+                        pass
                     vm.save()
+                
+                # Push to browser whenever status changes
+                if vm.status != previous_status:
+                    try:
+                        async_to_sync(channel_layer.group_send)(
+                            f'dashboard_{user.id}',
+                            {
+                                'type': 'vm_status_update',
+                                'data': {
+                                    'vm_id': vm.id,
+                                    'deployment_id': deployment.id,
+                                    'status': vm.status,
+                                    'status_display': vm.get_status_display(),
+                                }
+                            }
+                        )
+                    except Exception:
+                        pass
+            
+            vm_statuses = set(deployment.vms.values_list('status', flat=True))
 
+            if not vm_statuses:
+                # No VMs yet — leave deployment status alone
+                continue
+
+            if vm_statuses == {'running'}:
+                new_deployment_status = 'running'
+            elif vm_statuses == {'stopped'}:
+                new_deployment_status = 'stopped'
+            else:
+                new_deployment_status = 'fragmented'
+
+            if deployment.status != new_deployment_status:
+                deployment.status = new_deployment_status
+                deployment.save()
+
+                # Push deployment status update to browser too
+                try:
+                    async_to_sync(channel_layer.group_send)(
+                        f'dashboard_{user.id}',
+                        {
+                            'type': 'vm_status_update',
+                            'data': {
+                                'deployment_id': deployment.id,
+                                'deployment_status': new_deployment_status,
+                                'deployment_status_display': deployment.get_status_display(),
+                            }
+                        }
+                    )
+                except Exception:
+                    pass
+        
         return f"Polled VMs for user {user.username}"
 
     except User.DoesNotExist:
@@ -59,17 +119,28 @@ def poll_user_vms(user_id):
     except Exception as e:
         return f"Error polling VMs: {str(e)}"
 
-
 @shared_task
 def deploy_range(deployment_id):
-    """
-    Deploy all VMs in a RangeDeployment.
-    Clones each VMTemplate, captures MAC address,
-    and creates MachineConfig for config server.
-    """
     try:
+        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog
         deployment = RangeDeployment.objects.get(id=deployment_id)
         user = deployment.user
+
+        # Validate template resources
+        try:
+            from apps.proxmox.services import validate_range_template
+            warnings = validate_range_template(user, deployment.range_template)
+            if warnings:
+                deployment.status = 'error'
+                deployment.save()
+                ActivityLog.objects.create(
+                    user=user,
+                    event_type='deployment_failed',
+                    message=f"Deployment failed validation: {_sanitize_error(', '.join(warnings))}"
+                )
+                return f"Deployment failed validation: {warnings}"
+        except Exception:
+            pass
 
         deployment.status = 'deploying'
         deployment.save()
@@ -78,7 +149,7 @@ def deploy_range(deployment_id):
 
         for vm_template in vm_templates:
             try:
-                # Get a new VMID
+                # Get next available VMID
                 newid = _get_next_vmid(user)
 
                 # Clone the VM
@@ -90,12 +161,46 @@ def deploy_range(deployment_id):
                     name=f"{deployment.name}-{vm_template.name}",
                 )
 
-                # Wait for clone task to complete
+                # Wait for clone to complete
                 _wait_for_task(user, vm_template.node, upid)
+
+                # Configure network interfaces
+                try:
+                    network_interfaces = vm_template.network_interfaces.all()
+                    if network_interfaces:
+                        nic_config = {}
+                        for iface in network_interfaces:
+                            if iface.network:
+                                vnet = iface.network.proxmox_sdn_vnet
+                            elif iface.manual_vnet:
+                                vnet = iface.manual_vnet
+                            else:
+                                continue
+
+                            net_str = f'virtio,bridge={vnet}'
+                            if iface.vlan_tag:
+                                net_str += f',tag={iface.vlan_tag}'
+                            nic_config[f'net{iface.interface_index}'] = net_str
+
+                        if nic_config:
+                            services.update_vm_config(user, vm_template.node, newid, **nic_config)
+                except Exception as e:
+                    print(f"Warning: Could not configure network interfaces for {vm_template.name}: {e}")
+
+                # Assign to pool if specified
+                if deployment.proxmox_pool:
+                    try:
+                        proxmox = services.get_proxmox_connection(user)
+                        proxmox.pools(deployment.proxmox_pool).put(vms=str(newid))
+                    except Exception as e:
+                        print(f"Warning: Could not add VM to pool: {e}")
 
                 # Get VM config to capture MAC address
                 config = services.get_vm_config(user, vm_template.node, newid)
-                mac_address = _extract_mac(config)
+                all_macs = _extract_all_macs(config)
+
+                # net0 MAC is used as the primary MAC for script check-in
+                primary_mac = all_macs.get(0)
 
                 # Create DeployedVM record
                 deployed_vm = DeployedVM.objects.create(
@@ -103,29 +208,48 @@ def deploy_range(deployment_id):
                     vm_template=vm_template,
                     name=f"{deployment.name}-{vm_template.name}",
                     proxmox_vmid=newid,
-                    mac_address=mac_address,
+                    mac_address=primary_mac,
                     status='stopped',
                     node=vm_template.node,
                 )
 
-                # Render and store config script
-                if vm_template.config_script:
+                # Store all NIC MACs
+                for index, mac in all_macs.items():
+                    DeployedVMNIC.objects.create(
+                        deployed_vm=deployed_vm,
+                        interface_index=index,
+                        mac_address=mac,
+                    )
+
+                # Render and store config script (keyed to primary/net0 MAC)
+                if vm_template.config_script and primary_mac:
                     rendered_script = _render_script(
                         deployed_vm=deployed_vm,
                         script=vm_template.config_script,
                     )
                     MachineConfig.objects.create(
                         deployed_vm=deployed_vm,
-                        mac_address=mac_address,
+                        mac_address=primary_mac,
                         config_script=rendered_script,
                     )
-
                 # Start the VM
                 services.start_vm(user, vm_template.node, newid)
                 deployed_vm.status = 'running'
                 deployed_vm.save()
 
+                ActivityLog.objects.create(
+                    user=user,
+                    event_type='deployment_complete',
+                    message=f"VM '{deployed_vm.name}' deployed successfully (VMID {newid})."
+                )
+
             except Exception as e:
+                print(f"Error deploying VM {vm_template.name}: {e}")
+                ActivityLog.objects.create(
+                    user=user,
+                    event_type='deployment_failed',
+                    message=f"VM '{vm_template.name}' failed: {_sanitize_error(str(e))}"
+                )
                 DeployedVM.objects.filter(
                     deployment=deployment,
                     vm_template=vm_template
@@ -134,53 +258,94 @@ def deploy_range(deployment_id):
         deployment.status = 'running'
         deployment.save()
 
+        ActivityLog.objects.create(
+            user=user,
+            event_type='deployment_complete',
+            message=f"Range '{deployment.name}' deployed successfully."
+        )
+
         return f"Deployment {deployment.name} complete"
 
     except RangeDeployment.DoesNotExist:
         return f"Deployment {deployment_id} not found"
     except Exception as e:
-        deployment.status = 'error'
-        deployment.save()
-        return f"Error deploying range: {str(e)}"
+        try:
+            deployment.status = 'error'
+            deployment.save()
+        except Exception:
+            pass
+        return f"Error deploying range: {_sanitize_error(str(e))}"
 
 
 @shared_task
 def teardown_range(deployment_id):
-    """
-    Stop and delete all VMs in a RangeDeployment.
-    """
     try:
+        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog
         deployment = RangeDeployment.objects.get(id=deployment_id)
         user = deployment.user
 
         deployment.status = 'deleting'
         deployment.save()
 
-        for vm in deployment.vms.all():
+        vms = deployment.vms.all()
+        print(f"Tearing down {deployment.name} — {vms.count()} VMs found")
+
+        for vm in vms:
+            print(f"VM: {vm.name} — VMID: {vm.proxmox_vmid} — Status: {vm.status}")
             if not vm.proxmox_vmid:
+                vm.delete()
                 continue
             try:
-                # Stop VM first
-                services.stop_vm(user, vm.node, vm.proxmox_vmid)
-                time.sleep(5)  # give it a moment to stop
-                # Delete VM
+                if vm.status == 'running':
+                    services.stop_vm(user, vm.node, vm.proxmox_vmid)
+                    time.sleep(5)
                 services.delete_vm(user, vm.node, vm.proxmox_vmid)
-                vm.status = 'stopped'
-                vm.save()
+                vm.delete()
+                print(f"Deleted {vm.name} successfully")
             except Exception as e:
-                vm.status = 'error'
-                vm.save()
+                error_msg = str(e)
+                print(f"Error deleting {vm.name}: {error_msg}")
+                # If VM doesn't exist on Proxmox anymore, clean up the database record
+                if '500' in error_msg or 'does not exist' in error_msg or '404' in error_msg:
+                    print(f"VM {vm.name} already gone from Proxmox — removing database record")
+                    vm.delete()
+                else:
+                    vm.status = 'error'
+                    vm.save()
 
-        deployment.status = 'stopped'
-        deployment.save()
+        # Check if all VMs were cleaned up
+        # Check if all VMs were cleaned up
+        remaining = deployment.vms.count()
+        if remaining == 0:
+            # Clean up network records
+            deployment.networks.all().delete()
+            # Log before deleting
+            ActivityLog.objects.create(
+                user=user,
+                event_type='deployment_stopped',
+                message=f"Range '{deployment.name}' destroyed and removed."
+            )
+            # Delete the deployment record entirely
+            deployment.delete()
+        else:
+            deployment.status = 'fragmented'
+            deployment.save()
+            ActivityLog.objects.create(
+                user=user,
+                event_type='deployment_failed',
+                message=f"Range '{deployment.name}' teardown incomplete — {remaining} VMs could not be removed."
+            )
 
         return f"Teardown of {deployment.name} complete"
 
     except RangeDeployment.DoesNotExist:
         return f"Deployment {deployment_id} not found"
     except Exception as e:
-        deployment.status = 'error'
-        deployment.save()
+        try:
+            deployment.status = 'error'
+            deployment.save()
+        except Exception:
+            pass
         return f"Error tearing down range: {str(e)}"
 
 
@@ -194,14 +359,55 @@ def _map_proxmox_status(status):
     }
     return mapping.get(status, 'error')
 
-
 def _get_next_vmid(user):
-    """
-    Ask Proxmox for the next available VMID.
-    """
-    proxmox = services.get_proxmox_connection(user)
-    return proxmox.cluster.nextid.get()
+    from apps.ranges.models import DeployedVM, SiteSettings, VMIDLock
+    from django.db import transaction
 
+    with transaction.atomic():
+        # Acquire a database-level lock — only one worker can be here at a time
+        VMIDLock.objects.select_for_update().get(pk=1)
+
+        site_settings = SiteSettings.get()
+        vmid_min = site_settings.proxmox_vmid_min
+        vmid_max = site_settings.proxmox_vmid_max
+
+        proxmox = services.get_proxmox_connection(user)
+
+        cluster_vmids = set()
+        try:
+            nodes = proxmox.nodes.get()
+            for node in nodes:
+                try:
+                    vms = proxmox.nodes(node['node']).qemu.get()
+                    for vm in vms:
+                        cluster_vmids.add(vm['vmid'])
+                except Exception:
+                    pass
+                try:
+                    containers = proxmox.nodes(node['node']).lxc.get()
+                    for ct in containers:
+                        cluster_vmids.add(ct['vmid'])
+                except Exception:
+                    pass
+        except Exception as e:
+            raise Exception(f"Could not fetch cluster VMIDs: {str(e)}")
+
+        db_vmids = set(
+            DeployedVM.objects.filter(
+                proxmox_vmid__isnull=False
+            ).values_list('proxmox_vmid', flat=True)
+        )
+
+        used_vmids = cluster_vmids | db_vmids
+
+        for vmid in range(vmid_min, vmid_max):
+            if vmid not in used_vmids:
+                return vmid
+
+        raise Exception(
+            f"No available VMIDs in range {vmid_min}-{vmid_max}. "
+            f"Consider expanding the range in settings."
+        )
 
 def _wait_for_task(user, node, upid, timeout=300, interval=3):
     """
@@ -220,21 +426,26 @@ def _wait_for_task(user, node, upid, timeout=300, interval=3):
     raise Exception(f"Proxmox task timed out after {timeout}s")
 
 
-def _extract_mac(config):
+def _extract_all_macs(config):
     """
-    Extract MAC address from Proxmox VM config.
-    Proxmox stores network config as 'virtio=AA:BB:CC:DD:EE:FF,bridge=vmbr0'
+    Extract all NIC MAC addresses from Proxmox VM config.
+    Returns a dict of {interface_index: mac_address}.
     """
+    macs = {}
     for key, value in config.items():
         if key.startswith('net'):
+            try:
+                index = int(key[3:])
+            except ValueError:
+                continue
             parts = value.split(',')
             for part in parts:
                 if '=' in part:
                     k, v = part.split('=', 1)
                     if k in ('virtio', 'e1000', 'vmxnet3', 'rtl8139'):
-                        return v.upper()
-    return None
-
+                        macs[index] = v.upper()
+                        break
+    return macs
 
 def _render_script(deployed_vm, script):
     """
@@ -264,3 +475,20 @@ def _render_script(deployed_vm, script):
     template = Template(script.content)
     context = Context(context_data)
     return template.render(context)
+
+# --- Error Handling ---
+
+def _sanitize_error(message):
+    """Strip sensitive connection details from error messages."""
+    if 'HTTPSConnectionPool' in message or 'ConnectionError' in message:
+        return 'Could not connect to Proxmox cluster.'
+    if 'Authentication' in message or '401' in message:
+        return 'Proxmox authentication failed. Check your credentials.'
+    if '500' in message:
+        return 'Proxmox returned an internal server error.'
+    if '403' in message:
+        return 'Permission denied by Proxmox. Check API token permissions.'
+    if 'timeout' in message.lower():
+        return 'Connection to Proxmox timed out.'
+    # Truncate anything else to 100 chars
+    return message[:100] if len(message) > 100 else message

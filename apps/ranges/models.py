@@ -48,27 +48,61 @@ class VMTemplate(models.Model):
     def __str__(self):
         return f"{self.name} ({self.proxmox_template_id})"
 
+class VMTemplateNetwork(models.Model):
+    """
+    A network interface attachment for a VMTemplate.
+    Each record represents one NIC on the VM.
+    """
+    vm_template = models.ForeignKey(VMTemplate, on_delete=models.CASCADE, related_name='network_interfaces')
+    network = models.ForeignKey(RangeTemplateNetwork, on_delete=models.SET_NULL, null=True, blank=True)
+    interface_index = models.IntegerField(default=0, help_text="NIC index e.g. 0=net0, 1=net1")
+    manual_vnet = models.CharField(max_length=255, blank=True, null=True, help_text="Manual vnet if no network selected")
+    vlan_tag = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Optional VLAN tag (1–4094)")
+
+    class Meta:
+        ordering = ['interface_index']
+        unique_together = ('vm_template', 'interface_index')
+
+    def __str__(self):
+        return f"{self.vm_template.name} — net{self.interface_index}"
 
 class RangeDeployment(models.Model):
     STATUS_CHOICES = [
+        ('undeployed', 'Undeployed'),
         ('pending', 'Pending'),
         ('deploying', 'Deploying'),
         ('running', 'Running'),
         ('stopped', 'Stopped'),
+        ('fragmented', 'Fragmented'),
         ('deleting', 'Deleting'),
         ('error', 'Error'),
+        ('archived', 'Archived'),
     ]
 
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='deployments')
     range_template = models.ForeignKey(RangeTemplate, on_delete=models.SET_NULL, null=True)
     name = models.CharField(max_length=255)
-    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='pending')
+    status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='undeployed')
+    proxmox_pool = models.CharField(max_length=255, blank=True, null=True)
+    is_archived = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
     def __str__(self):
         return f"{self.user.username} - {self.name} ({self.status})"
 
+    def get_fragmented(self):
+        """Returns True if some VMs are missing or errored."""
+        vms = self.vms.all()
+        if not vms:
+            return False
+        return vms.filter(status='error').exists()
+
+    def running_vms(self):
+        return self.vms.filter(status='running').count()
+
+    def total_vms(self):
+        return self.vms.count()
 
 class RangeNetwork(models.Model):
     deployment = models.ForeignKey(RangeDeployment, on_delete=models.CASCADE, related_name='networks')
@@ -116,3 +150,69 @@ class DeployedVMConfig(models.Model):
 
     def __str__(self):
         return f"{self.deployed_vm.name} config"
+    
+class ActivityLog(models.Model):
+    EVENT_TYPES = [
+        ('deployment_started', 'Deployment Started'),
+        ('deployment_complete', 'Deployment Complete'),
+        ('deployment_stopped', 'Deployment Stopped'),
+        ('deployment_failed', 'Deployment Failed'),
+        ('vm_checkin', 'VM Checked In'),
+        ('vm_failed', 'VM Failed'),
+        ('user_registered', 'User Registered'),
+    ]
+
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    event_type = models.CharField(max_length=50, choices=EVENT_TYPES)
+    message = models.TextField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.event_type} - {self.created_at}"
+    
+class SiteSettings(models.Model):
+    proxmox_vmid_min = models.IntegerField(default=200, help_text="Minimum VMID for training VMs")
+    proxmox_vmid_max = models.IntegerField(default=999, help_text="Maximum VMID for training VMs")
+
+    class Meta:
+        verbose_name = 'Site settings'
+        verbose_name_plural = 'Site settings'
+
+    def __str__(self):
+        return f"Site settings (VMID range: {self.proxmox_vmid_min}-{self.proxmox_vmid_max})"
+
+    @classmethod
+    def get(cls):
+        """Always returns the single settings instance, creating it if needed."""
+        settings, _ = cls.objects.get_or_create(pk=1)
+        return settings
+    
+class VMIDLock(models.Model):
+    """
+    Used to serialize VMID allocation across concurrent deployments.
+    Only one record ever exists — it acts as a mutex.
+    """
+    locked_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        verbose_name = 'VMID lock'
+
+    @classmethod
+    def get(cls):
+        lock, _ = cls.objects.get_or_create(pk=1)
+        return lock
+    
+class DeployedVMNIC(models.Model):
+    deployed_vm = models.ForeignKey(DeployedVM, on_delete=models.CASCADE, related_name='nics')
+    interface_index = models.IntegerField(help_text="NIC index e.g. 0=net0, 1=net1")
+    mac_address = models.CharField(max_length=17)
+
+    class Meta:
+        ordering = ['interface_index']
+        unique_together = ('deployed_vm', 'interface_index')
+
+    def __str__(self):
+        return f"{self.deployed_vm.name} — net{self.interface_index} ({self.mac_address})"

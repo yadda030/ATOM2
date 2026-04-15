@@ -1,0 +1,273 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Template VMs{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">{{ template.name }}</div>
+        <a href="{% url 'template_list' %}" class="btn-outline">Cancel</a>
+    </div>
+
+    {% include 'ranges/wizard/wizard_steps.html' %}
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="panel">
+        <div class="panel-header">
+            <span>Virtual machines</span>
+            <span class="optional-label">Optional</span>
+        </div>
+        <div class="panel-body">
+            <p class="step-hint">Add VMs to your range template. Each VM will be cloned from a Proxmox template when the range is deployed. Additional network interfaces can be added after saving a VM.</p>
+
+            <!-- Saved VMs -->
+            {% for vm in vms %}
+            <div class="saved-item-wrapper">
+                <div class="saved-item">
+                    <div>
+                        <div class="saved-item-name">{{ vm.name }}</div>
+                        <div class="saved-item-meta">
+                            VMID {{ vm.proxmox_template_id }} · {{ vm.node }}
+                            · {{ vm.cores }} cores · {{ vm.memory }}MB
+                            {% if vm.config_script %} · {{ vm.config_script.name }}{% endif %}
+                        </div>
+                        <div class="saved-item-meta">
+                            {% for iface in vm.network_interfaces.all %}
+                            net{{ iface.interface_index }}:
+                            {% if iface.network %}{{ iface.network.name }}{% elif iface.manual_vnet %}{{ iface.manual_vnet }}{% else %}none{% endif %}
+                            {% if iface.vlan_tag %} (VLAN {{ iface.vlan_tag }}){% endif %}
+                            {% if not forloop.last %} · {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div class="saved-item-actions">
+                        <button type="button" class="btn-edit-sm" onclick="toggleEditForm('vm-edit-{{ vm.pk }}')">Edit</button>
+                        <form method="post" action="{% url 'vm_delete' template.pk vm.pk %}" style="display:inline;">
+                            {% csrf_token %}
+                            <button type="submit" class="btn-delete-sm" onclick="return confirm('Remove this VM?')">Remove</button>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- Inline edit form -->
+                <div class="add-form" id="vm-edit-{{ vm.pk }}" style="display:none;">
+                    <div class="add-form-title">Edit VM</div>
+                    <form method="post" action="{% url 'vm_edit' template.pk vm.pk %}">
+                        {% csrf_token %}
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">VM name <span class="required">*</span></label>
+                                <input class="form-input" type="text" name="name" value="{{ vm.name }}" required />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Node <span class="required">*</span></label>
+                                <input class="form-input" type="text" name="node" value="{{ vm.node }}" placeholder="e.g. pve-node1" required />
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Proxmox template VMID <span class="required">*</span></label>
+                                <input class="form-input" type="number" name="proxmox_template_id" value="{{ vm.proxmox_template_id }}" required />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Config script <span class="optional">(optional)</span></label>
+                                <select class="form-input" name="config_script">
+                                    <option value="">No script</option>
+                                    {% for script in scripts %}
+                                    <option value="{{ script.pk }}" {% if vm.config_script == script %}selected{% endif %}>{{ script.name }}</option>
+                                    {% endfor %}
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">CPU cores <span class="optional">(optional)</span></label>
+                                <input class="form-input" type="number" name="cores" value="{{ vm.cores }}" min="1" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Memory MB <span class="optional">(optional)</span></label>
+                                <input class="form-input" type="number" name="memory" value="{{ vm.memory }}" min="512" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Notes <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="text" name="notes" value="{{ vm.notes|default:'' }}" placeholder="Any notes about this VM" />
+                        </div>
+                        <div style="display:flex; gap:10px; margin-top:14px;">
+                            <button type="submit" class="btn-save-item">Save changes</button>
+                            <button type="button" class="btn-cancel-item" onclick="toggleEditForm('vm-edit-{{ vm.pk }}')">Cancel</button>
+                        </div>
+                    </form>
+
+                    <!-- Network interfaces -->
+                    <div style="margin-top:16px; padding-top:16px; border-top:0.5px solid #dce6ef;">
+                        <div class="add-form-title" style="margin-bottom:10px;">Network interfaces</div>
+
+                        {% for iface in vm.network_interfaces.all %}
+                        <div class="saved-item" style="margin-bottom:6px;">
+                            <div>
+                                <div class="saved-item-name" style="font-size:13px;">
+                                    net{{ iface.interface_index }} —
+                                    {% if iface.network %}{{ iface.network.name }}
+                                    {% elif iface.manual_vnet %}{{ iface.manual_vnet }}
+                                    {% else %}No network{% endif %}
+                                    {% if iface.vlan_tag %} (VLAN {{ iface.vlan_tag }}){% endif %}
+                                </div>
+                            </div>
+                            <form method="post" action="{% url 'vm_network_delete' template.pk vm.pk iface.pk %}" style="display:inline;">
+                                {% csrf_token %}
+                                <button type="submit" class="btn-delete-sm">Remove</button>
+                            </form>
+                        </div>
+                        {% empty %}
+                        <div style="font-size:12px; color:#b0bec8; margin-bottom:8px;">No network interfaces added.</div>
+                        {% endfor %}
+
+                        <!-- Multi-row add form -->
+                        <form method="post" action="{% url 'vm_network_add' template.pk vm.pk %}" id="iface-form-{{ vm.pk }}">
+                            {% csrf_token %}
+                            <div id="iface-rows-{{ vm.pk }}">
+                                <div class="iface-row" style="display:grid; grid-template-columns: 1fr 1fr 80px auto; gap:8px; margin-bottom:8px; align-items:end;">
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label class="form-label">From template networks</label>
+                                        <select class="form-input" name="network">
+                                            <option value="">None</option>
+                                            {% for network in networks %}
+                                            <option value="{{ network.pk }}">{{ network.name }}</option>
+                                            {% endfor %}
+                                        </select>
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label class="form-label">Or manual vnet</label>
+                                        <input class="form-input" type="text" name="manual_vnet" placeholder="vnet-name" />
+                                    </div>
+                                    <div class="form-group" style="margin-bottom:0;">
+                                        <label class="form-label">VLAN tag</label>
+                                        <input class="form-input" type="number" name="vlan_tag" placeholder="—" min="1" max="4094" />
+                                    </div>
+                                    <button type="button" class="btn-delete-sm" onclick="removeIfaceRow(this)" style="margin-bottom:0;">×</button>
+                                </div>
+                            </div>
+                            <div style="display:flex; gap:8px; margin-top:8px;">
+                                <button type="button" class="btn-add" style="width:auto; padding: 6px 14px;"
+                                    data-vm-pk="{{ vm.pk }}"
+                                    data-networks='[{% for n in networks %}{"id":"{{ n.pk }}","name":"{{ n.name|escapejs }}"}{% if not forloop.last %},{% endif %}{% endfor %}]'
+                                    onclick="addIfaceRow(this)">
+                                    + Add another
+                                </button>
+                                <button type="submit" class="btn-save-item">Save interfaces</button>
+                            </div>
+                        </form>
+                    </div>
+
+                </div>
+            </div>
+            {% empty %}
+            <div class="empty-state" style="margin-bottom: 16px;">No VMs added yet.</div>
+            {% endfor %}
+
+            <!-- Add VM form -->
+            <div class="add-form" id="add-vm-form" style="display:none;">
+                <div class="add-form-title">Add VM</div>
+                <form method="post" action="{% url 'vm_add' template.pk %}">
+                    {% csrf_token %}
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">VM name <span class="required">*</span></label>
+                            <input class="form-input" type="text" name="name"
+                                placeholder="e.g. Domain Controller" required />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Node <span class="required">*</span></label>
+                            <select class="form-input" name="node" id="node-select" required>
+                                <option value="">Select node</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Proxmox template <span class="required">*</span></label>
+                            <input class="form-input" type="text" name="proxmox_template_id"
+                                id="template-id-input" placeholder="Enter VMID" required />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Config script <span class="optional">(optional)</span></label>
+                            <select class="form-input" name="config_script">
+                                <option value="">No script</option>
+                                {% for script in scripts %}
+                                <option value="{{ script.pk }}">{{ script.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">CPU cores <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="number" name="cores" min="1" value="2" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Memory MB <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="number" name="memory" min="512" value="2048" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Primary network <span class="optional">(optional)</span></label>
+                            <select class="form-input" name="network">
+                                <option value="">None</option>
+                                {% for network in networks %}
+                                <option value="{{ network.pk }}">{{ network.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">VLAN tag <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="number" name="primary_vlan_tag" placeholder="—" min="1" max="4094" />
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Notes <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="text" name="notes" placeholder="Any notes about this VM" />
+                        </div>
+                    </div>
+                    <div style="font-size:11px; color:#b0bec8; margin-bottom:14px;">
+                        Additional network interfaces can be added after saving the VM.
+                    </div>
+                    <div style="display:flex; gap:10px;">
+                        <button type="submit" class="btn-save-item">Save VM</button>
+                        <button type="button" class="btn-cancel-item" onclick="toggleAddForm('add-vm-form', 'add-vm-btn')">Cancel</button>
+                    </div>
+                </form>
+            </div>
+
+            <button type="button" class="btn-add" id="add-vm-btn" onclick="toggleAddForm('add-vm-form', 'add-vm-btn')">+ Add VM</button>
+        </div>
+    </div>
+
+    <div class="wizard-actions">
+        <a href="{% url 'template_step2' template.pk %}" class="btn-outline">← Back</a>
+        <a href="{% url 'template_step4' template.pk %}" class="btn-primary">Next: Review →</a>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<div id="vm-config"
+    data-nodes="{{ proxmox_nodes_json }}"
+    data-templates="{{ proxmox_templates_json }}"
+    style="display:none;">
+</div>
+<script src="{% static 'js/wizard_step3.js' %}"></script>
+{% endblock %}

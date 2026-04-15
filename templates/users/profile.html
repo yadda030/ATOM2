@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Profile{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/profile.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-title">Profile</div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="profile-grid">
+
+        <!-- Sidebar -->
+        <div class="profile-sidebar">
+            <div class="avatar">{{ request.user.username|slice:":2"|upper }}</div>
+            <div class="profile-name">{{ request.user.username }}</div>
+            <div class="profile-role">{% if request.user.is_staff %}Admin{% else %}Member{% endif %}</div>
+            <hr class="sidebar-divider">
+            <div class="sidebar-stat">
+                <span class="sidebar-stat-label">Deployments</span>
+                <span class="sidebar-stat-value">{{ deployment_count }}</span>
+            </div>
+            <div class="sidebar-stat">
+                <span class="sidebar-stat-label">Proxmox</span>
+                <span class="sidebar-stat-value">
+                    {% if connection.status == 'connected' %}
+                    <span class="status-dot dot-green"></span>Connected
+                    {% elif connection.status == 'unconfigured' %}
+                    <span class="status-dot dot-gray"></span>Not set
+                    {% else %}
+                    <span class="status-dot dot-red"></span>Error
+                    {% endif %}
+                </span>
+            </div>
+            <div class="sidebar-stat">
+                <span class="sidebar-stat-label">Member since</span>
+                <span class="sidebar-stat-value">{{ request.user.date_joined|date:"M Y" }}</span>
+            </div>
+            <hr class="sidebar-divider">
+            <a href="{% url 'change_password' %}" class="btn-change-password">Change password</a>
+        </div>
+
+        <!-- Main content -->
+        <div>
+
+            <!-- Account Info -->
+            <div class="profile-card">
+                <div class="card-header">Account info</div>
+                <div class="card-body">
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">First name</label>
+                                <input class="form-input" type="text" name="first_name" value="{{ request.user.first_name }}" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Last name</label>
+                                <input class="form-input" type="text" name="last_name" value="{{ request.user.last_name }}" />
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input class="form-input" type="email" name="email" value="{{ request.user.email }}" />
+                        </div>
+                        <button type="submit" name="save_account" class="btn-save">Save changes</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Proxmox Credentials -->
+            <div class="profile-card">
+                <div class="card-header">Proxmox credentials</div>
+                <div class="card-body">
+                    {% if connection.status == 'connected' %}
+                    <div class="connection-bar connection-ok">
+                        <span class="status-dot dot-green"></span>
+                        Connected to Proxmox
+                    </div>
+                    {% elif connection.status == 'unconfigured' %}
+                    <div class="connection-bar connection-warn">
+                        <span class="status-dot dot-warn"></span>
+                        No credentials configured
+                    </div>
+                    {% else %}
+                    <div class="connection-bar connection-error">
+                        <span class="status-dot dot-red"></span>
+                        Error connecting to Proxmox
+                    </div>
+                    {% endif %}
+
+                    <form method="post">
+                        {% csrf_token %}
+                        <div class="form-group">
+                            <label class="form-label">Proxmox host</label>
+                            <input class="form-input" type="text" name="proxmox_host" value="{{ request.user.proxmox_host|default:'' }}" placeholder="https://192.168.1.100:8006" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Proxmox user</label>
+                            <input class="form-input" type="text" name="proxmox_user" value="{{ request.user.proxmox_user|default:'' }}" placeholder="root@pam" />
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label class="form-label">Token name</label>
+                                <input class="form-input" type="text" name="proxmox_token_name" value="{{ request.user.proxmox_token_name|default:'' }}" placeholder="mytoken" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Token value</label>
+                                <input class="form-input" type="password" name="proxmox_token_value" placeholder="Leave blank to keep existing" />
+                            </div>
+                        </div>
+                        <button type="submit" name="save_proxmox" class="btn-save">Save credentials</button>
+                    </form>
+                </div>
+            </div>
+
+        </div>
+    </div>
+</div>
+{% endblock %}

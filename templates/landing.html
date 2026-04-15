@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Training Range Manager{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/landing.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="landing">
+    <canvas id="networkCanvas"></canvas>
+    <div class="landing-card">
+        <div class="landing-divider"></div>
+        <div class="landing-title">Atom2</div>
+        <div class="landing-subtitle">Training Range Manager</div>
+
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            <input type="hidden" name="next" value="{% url 'dashboard' %}">
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input class="form-input" type="text" name="username" placeholder="Enter your username" required />
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input class="form-input" type="password" name="password" placeholder="••••••••" required />
+            </div>
+            {% if form.errors %}
+                <div class="form-error">Invalid username or password.</div>
+            {% endif %}
+            <button type="submit" class="btn-login">Login</button>
+        </form>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/network.js' %}"></script>
+{% endblock %}

@@ -1,0 +1,77 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — New Template{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">{% if template %}Edit template{% else %}New range template{% endif %}</div>
+        <a href="{% url 'template_list' %}" class="btn-outline">Cancel</a>
+    </div>
+
+    {% include 'ranges/wizard/wizard_steps.html' %}
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="panel">
+        <div class="panel-header">Template info</div>
+        <div class="panel-body">
+            <form method="post">
+                {% csrf_token %}
+                <div class="form-row" style="margin-bottom: 14px;">
+                    <div class="form-group">
+                        <label class="form-label">Template name <span class="required">*</span></label>
+                        <input class="form-input" type="text" name="name"
+                            value="{{ form.name.value|default:'' }}"
+                            placeholder="e.g. Windows AD Lab" required />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Visibility</label>
+                        <select class="form-input" name="is_public">
+                            <option value="False" {% if not form.is_public.value %}selected{% endif %}>Private</option>
+                            <option value="True" {% if form.is_public.value %}selected{% endif %}>Public</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-row" style="margin-bottom: 14px;">
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <input class="form-input" type="text" name="description"
+                            value="{{ form.description.value|default:'' }}"
+                            placeholder="Brief description of this range" />
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Tags</label>
+                        <div class="tags-wrap" id="tags-wrap">
+                            {% for tag in existing_tags_list %}
+                            <span class="tag">{{ tag }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
+                            {% endfor %}
+                            <input class="tag-input" id="tag-input" placeholder="Add tag..." />
+                        </div>
+                        <input type="hidden" name="tags" id="tags-hidden" value="{{ existing_tags }}" />
+                    </div>
+                </div>
+
+                <div class="wizard-actions">
+                    <a href="{% url 'template_list' %}" class="btn-outline">Cancel</a>
+                    <button type="submit" class="btn-primary">Next: Networks →</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/wizard_tags.js' %}"></script>
+{% endblock %}

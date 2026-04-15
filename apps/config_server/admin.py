@@ -9,8 +9,8 @@ class ScriptVariableInline(admin.TabularInline):
 
 @admin.register(Script)
 class ScriptAdmin(admin.ModelAdmin):
-    list_display = ('name', 'script_type', 'created_by', 'is_public', 'created_at')
-    list_filter = ('script_type', 'is_public', 'tags')
+    list_display = ('name', 'script_type', 'created_by', 'visibility', 'created_at')
+    list_filter = ('script_type', 'visibility')
     search_fields = ('name', 'description')
     inlines = [ScriptVariableInline]
 

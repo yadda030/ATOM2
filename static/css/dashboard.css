@@ -1,0 +1,253 @@
+.page {
+    padding: 28px 2rem;
+    max-width: 1100px;
+    margin: 0 auto;
+}
+
+.page-title {
+    font-size: 20px;
+    font-weight: 500;
+    color: #1a2535;
+    margin-bottom: 24px;
+}
+
+/* Cluster stats */
+.stats-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+}
+
+.stat-card {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    padding: 16px 20px;
+}
+
+.stat-label {
+    font-size: 12px;
+    color: #8a9bb0;
+    margin-bottom: 8px;
+    letter-spacing: 0.3px;
+}
+
+.stat-value {
+    font-size: 24px;
+    font-weight: 500;
+    color: #1a2535;
+}
+
+.stat-value span {
+    font-size: 13px;
+    font-weight: 400;
+    color: #8a9bb0;
+    margin-left: 4px;
+}
+
+.stat-dot {
+    display: inline-block;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    margin-right: 4px;
+}
+
+.dot-green { background: #639922; }
+.dot-blue { background: #378add; }
+.dot-running { background: #639922; }
+.dot-stopped { background: #888780; }
+.dot-error { background: #e24b4a; }
+.dot-pending { background: #378add; }
+
+/* Main grid */
+.main-grid {
+    display: grid;
+    grid-template-columns: 1fr 320px;
+    gap: 20px;
+}
+
+.section-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #8a9bb0;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 14px;
+}
+
+/* Deployment cards */
+.deployment-card {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    margin-bottom: 12px;
+    overflow: hidden;
+}
+
+.deployment-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 14px 18px;
+    border-bottom: 0.5px solid #dce6ef;
+}
+
+.deployment-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1a2535;
+}
+
+.badge {
+    font-size: 11px;
+    padding: 3px 10px;
+    border-radius: 20px;
+    font-weight: 500;
+}
+
+.badge-running { background: #eaf3de; color: #3b6d11; }
+.badge-stopped { background: #f1efe8; color: #5f5e5a; }
+.badge-deploying { background: #e6f1fb; color: #185fa5; }
+.badge-error { background: #fcebeb; color: #a32d2d; }
+.badge-pending { background: #e6f1fb; color: #185fa5; }
+.badge-deleting { background: #faeeda; color: #854f0b; }
+
+.vm-list { padding: 6px 18px; }
+
+.vm-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    border-bottom: 0.5px solid #f0f4f8;
+    font-size: 13px;
+}
+
+.vm-row:last-child { border-bottom: none; }
+
+.vm-name { color: #1a2535; }
+.vm-meta { font-size: 12px; color: #8a9bb0; margin-top: 2px; }
+
+.vm-status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12px;
+    color: #3b6d11;
+}
+
+.vm-status.stopped { color: #5f5e5a; }
+.vm-status.error { color: #a32d2d; }
+.vm-status.pending { color: #185fa5; }
+
+/* Activity feed */
+.activity-card {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    padding: 6px 18px;
+}
+
+.activity-item {
+    display: flex;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 0.5px solid #f0f4f8;
+    font-size: 13px;
+}
+
+.activity-item:last-child { border-bottom: none; }
+
+.activity-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    font-size: 12px;
+}
+
+.icon-deployment_complete { background: #eaf3de; color: #3b6d11; }
+.icon-deployment_started { background: #e6f1fb; color: #185fa5; }
+.icon-deployment_stopped { background: #f1efe8; color: #5f5e5a; }
+.icon-deployment_failed { background: #fcebeb; color: #a32d2d; }
+.icon-vm_checkin { background: #e6f1fb; color: #185fa5; }
+.icon-vm_failed { background: #fcebeb; color: #a32d2d; }
+.icon-user_registered { background: #eaf3de; color: #3b6d11; }
+
+.activity-text { color: #1a2535; line-height: 1.5; }
+.activity-time { font-size: 11px; color: #8a9bb0; margin-top: 2px; }
+
+/* Empty state */
+.empty-state {
+    color: #8a9bb0;
+    font-size: 14px;
+    padding: 24px;
+    text-align: center;
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+}
+
+.empty-state a {
+    color: #378add;
+    text-decoration: none;
+}
+
+/* Connection status bar */
+.connection-bar {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 13px;
+    margin-bottom: 24px;
+    border: 0.5px solid;
+}
+
+.connection-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+}
+
+.connection-ok {
+    background: #eaf3de;
+    color: #3b6d11;
+    border-color: #c0dd97;
+}
+
+.connection-ok .connection-dot {
+    background: #639922;
+}
+
+.connection-warn {
+    background: #faeeda;
+    color: #854f0b;
+    border-color: #fac775;
+}
+
+.connection-warn .connection-dot {
+    background: #ba7517;
+}
+
+.connection-warn a {
+    color: #854f0b;
+    font-weight: 500;
+}
+
+.connection-error {
+    background: #fcebeb;
+    color: #a32d2d;
+    border-color: #f7c1c1;
+}
+
+.connection-error .connection-dot {
+    background: #e24b4a;
+}

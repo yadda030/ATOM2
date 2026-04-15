@@ -1,0 +1,65 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Range Templates{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/ranges.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">Range Templates</div>
+        <a href="{% url 'template_new' %}" class="btn-primary">+ New template</a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% if templates %}
+    <div class="template-grid">
+        {% for template in templates %}
+        <div class="template-card">
+            <div class="template-card-header">
+                <div class="template-name">{{ template.name }}</div>
+                {% if template.is_public %}
+                <span class="badge badge-public">Public</span>
+                {% else %}
+                <span class="badge badge-private">Private</span>
+                {% endif %}
+            </div>
+            <div class="template-desc">{{ template.description|default:"No description." }}</div>
+            <div class="template-stats">
+                <span>{{ template.vm_templates.count }} VM{{ template.vm_templates.count|pluralize }}</span>
+                <span>{{ template.networks.count }} Network{{ template.networks.count|pluralize }}</span>
+            </div>
+            <div class="template-tags">
+                {% for tag in template.tags.all %}
+                <span class="tag">{{ tag.name }}</span>
+                {% endfor %}
+            </div>
+            <div class="template-actions">
+                {% if template.can_edit %}
+                <a href="{% url 'template_edit' template.pk %}" class="btn-sm btn-edit">Edit</a>
+                <form method="post" action="{% url 'template_delete' template.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-sm btn-delete" onclick="return confirm('Delete this template?')">Delete</button>
+                </form>
+                {% else %}
+                <a href="{% url 'template_view' template.pk %}" class="btn-sm btn-edit">View</a>
+                {% endif %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No range templates yet. <a href="{% url 'template_new' %}">Create your first template</a>.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

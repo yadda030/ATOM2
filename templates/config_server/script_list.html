@@ -1,0 +1,101 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Script Library{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/scripts.css' %}">
+<script>
+function toggleImportForm() {
+    const form = document.getElementById('import-form');
+    if (!form) return;
+    form.style.display = form.style.display === 'none' ? 'block' : 'none';
+}
+</script>
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">Script Library</div>
+        <div style="display:flex; gap:10px; align-items:center;">
+            <button type="button" class="btn-outline" onclick="toggleImportForm()">↑ Import</button>
+            <a href="{% url 'script_new' %}" class="btn-primary">+ New script</a>
+        </div>
+    </div>
+
+    <!-- Import form -->
+    <div class="add-form" id="import-form" style="display:none;">
+        <div class="add-form-title">Import script</div>
+        <form method="post" action="{% url 'script_import' %}" enctype="multipart/form-data">
+            {% csrf_token %}
+            <div style="display:flex; gap:10px; align-items:flex-end;">
+                <div class="form-group" style="margin-bottom:0; flex:1;">
+                    <label class="form-label">Select JSON export file</label>
+                    <input class="form-input" type="file" name="import_file" accept=".json" required />
+                </div>
+                <button type="submit" class="btn-save-item">Import</button>
+                <button type="button" class="btn-cancel-item" onclick="toggleImportForm()">Cancel</button>
+            </div>
+            <div style="font-size:11px; color:#b0bec8; margin-top:8px;">
+                Imported scripts are always set to private. You can change visibility after importing.
+            </div>
+        </form>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="filters">
+        <form method="get" style="display: flex; gap: 10px; align-items: center;">
+            <input class="search-input" type="text" name="search" value="{{ search }}" placeholder="Search scripts..." />
+            <button type="submit" name="type" value="" class="filter-btn {% if not script_type %}active{% endif %}">All</button>
+            <button type="submit" name="type" value="bootstrap" class="filter-btn {% if script_type == 'bootstrap' %}active{% endif %}">Bootstrap</button>
+            <button type="submit" name="type" value="config" class="filter-btn {% if script_type == 'config' %}active{% endif %}">Config</button>
+            <button type="submit" name="type" value="teardown" class="filter-btn {% if script_type == 'teardown' %}active{% endif %}">Teardown</button>
+        </form>
+    </div>
+
+    {% if scripts %}
+    <div class="script-grid">
+        {% for script in scripts %}
+        <div class="script-card">
+            <div class="script-card-header">
+                <div class="script-name">{{ script.name }}</div>
+                <span class="script-type type-{{ script.script_type }}">{{ script.get_script_type_display }}</span>
+            </div>
+            <div class="script-desc">{{ script.description|default:"No description." }}</div>
+            <div class="script-preview">{{ script.content|truncatechars:120 }}</div>
+            <div class="script-footer">
+                <div class="script-tags">
+                    {% for tag in script.tags.all %}
+                    <span class="tag">{{ tag.name }}</span>
+                    {% endfor %}
+                </div>
+                <div class="script-meta">{{ script.variables.count }} variable{{ script.variables.count|pluralize }}</div>
+            </div>
+            <div class="script-actions">
+                {% if script.can_edit %}
+                <a href="{% url 'script_edit' script.pk %}" class="btn-sm btn-edit">Edit</a>
+                <form method="post" action="{% url 'script_delete' script.pk %}" style="display:inline;">
+                    {% csrf_token %}
+                    <button type="submit" class="btn-sm btn-delete" onclick="return confirm('Delete this script?')">Delete</button>
+                </form>
+                {% else %}
+                <a href="{% url 'script_edit' script.pk %}" class="btn-sm btn-edit">View</a>
+                {% endif %}
+                <a href="{% url 'script_export' script.pk %}" class="btn-sm btn-outline">↓ Export</a>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No scripts found. <a href="{% url 'script_new' %}">Create your first script</a>.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

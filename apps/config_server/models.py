@@ -10,15 +10,27 @@ class Script(models.Model):
         ('teardown', 'Teardown'),
     ]
 
+    VISIBILITY_CHOICES = [
+        ('private', 'Private'),
+        ('public_view', 'Public — view only'),
+        ('public_edit', 'Public — editable'),
+    ]
+
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
     script_type = models.CharField(max_length=20, choices=SCRIPT_TYPES, default='config')
     content = models.TextField(help_text="Use {{ variable_name }} for variables")
     created_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-    is_public = models.BooleanField(default=False)
-    tags = models.ManyToManyField(Tag, blank=True, related_name='scripts')
+    visibility = models.CharField(max_length=20, choices=VISIBILITY_CHOICES, default='private')
+    tags = models.ManyToManyField('ranges.Tag', blank=True, related_name='scripts')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    def is_editable_by(self, user):
+        return self.created_by == user or self.visibility == 'public_edit'
+
+    def is_visible_to(self, user):
+        return self.created_by == user or self.visibility in ('public_view', 'public_edit')
 
     def __str__(self):
         return f"{self.name} ({self.script_type})"

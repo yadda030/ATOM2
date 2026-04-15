@@ -1,0 +1,218 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — {% if script %}Edit{% else %}New{% endif %} Script{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/scripts.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">
+            {% if script %}
+                {% if can_edit %}Edit script{% else %}View script{% endif %}
+            {% else %}
+                New script
+            {% endif %}
+        </div>
+        <div class="header-actions">
+            <a href="{% url 'script_list' %}" class="btn-outline">
+                {% if can_edit %}Cancel{% else %}Back{% endif %}
+            </a>
+            {% if can_edit %}
+            <button form="script-form" type="submit" class="btn-primary">Save script</button>
+            {% endif %}
+        </div>
+    </div>
+
+    <form id="script-form" method="post" {% if not can_edit %}class="form-readonly"{% endif %}>
+        {% csrf_token %}
+        {{ formset.management_form }}
+
+        <!-- Row 1: Script info + Tags -->
+        <div class="top-row">
+            <div class="panel">
+                <div class="panel-header">Script info</div>
+                <div class="panel-body">
+                    <div class="form-group">
+                        <label class="form-label">Script name</label>
+                        <input class="form-input" type="text" name="name" value="{{ form.name.value|default:'' }}" placeholder="e.g. Windows Domain Setup" required />
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Type</label>
+                            <select class="form-input" name="script_type">
+                                {% for value, label in form.fields.script_type.choices %}
+                                <option value="{{ value }}" {% if form.script_type.value == value %}selected{% endif %}>{{ label }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Visibility</label>
+                            <select class="form-input" name="visibility">
+                                <option value="private" {% if form.visibility.value == 'private' %}selected{% endif %}>Private</option>
+                                <option value="public_view" {% if form.visibility.value == 'public_view' %}selected{% endif %}>Public — view only</option>
+                                <option value="public_edit" {% if form.visibility.value == 'public_edit' %}selected{% endif %}>Public — editable</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Description</label>
+                        <input class="form-input" type="text" name="description" value="{{ form.description.value|default:'' }}" placeholder="Brief description of what this script does" />
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel">
+                <div class="panel-header">Tags</div>
+                <div class="panel-body">
+                    <div class="tags-wrap" id="tags-wrap">
+                        {% for tag in existing_tags_list %}
+                        <span class="tag">{{ tag }} <span class="tag-remove" onclick="removeTag(this)">×</span></span>
+                        {% endfor %}
+                        <input class="tag-input" id="tag-input" placeholder="Add tag..." />
+                    </div>
+                    <input type="hidden" name="tags" id="tags-hidden" value="{{ existing_tags }}" />
+                    <div style="font-size: 11px; color: #b0bec8; margin-top: 6px;">Press enter to add</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Row 2: Variables -->
+        <div class="panel" style="margin-bottom: 14px;">
+            <div class="panel-header">
+                <span>Variables</span>
+                <button type="button" class="btn-add-var" onclick="addVariable()">+ Add variable</button>
+            </div>
+            <div class="panel-body">
+                <table class="variables-table">
+                    <thead>
+                        <tr>
+                            <th>Key</th>
+                            <th>Type</th>
+                            <th>Default value</th>
+                            <th>Description</th>
+                            <th>Required</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody id="variables-tbody">
+                        {% for var in system_vars %}
+                        <tr>
+                            <td><input class="variable-input" type="text" value="{{ var.key }}" readonly /></td>
+                            <td><span class="system-badge">system</span></td>
+                            <td><input class="variable-input" type="text" placeholder="—" disabled /></td>
+                            <td><input class="variable-input" type="text" value="Auto populated from deployment" readonly /></td>
+                            <td><span class="system-badge">auto</span></td>
+                            <td></td>
+                        </tr>
+                        {% endfor %}
+
+                        {% for var_form in formset %}
+                        <tr class="variable-row">
+                            <td>
+                                <input class="variable-input" type="text" name="{{ var_form.key.html_name }}" value="{{ var_form.key.value|default:'' }}" placeholder="variable_name" />
+                                <input type="hidden" name="{{ var_form.DELETE.html_name }}" class="delete-field" value="" />
+                            </td>
+                            <td>
+                                <select class="variable-input" name="{{ var_form.variable_type.html_name }}">
+                                    {% for value, label in var_form.fields.variable_type.choices %}
+                                    <option value="{{ value }}" {% if var_form.variable_type.value == value %}selected{% endif %}>{{ label }}</option>
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td><input class="variable-input" type="text" name="{{ var_form.default_value.html_name }}" value="{{ var_form.default_value.value|default:'' }}" placeholder="Optional default" /></td>
+                            <td><input class="variable-input" type="text" name="{{ var_form.description.html_name }}" value="{{ var_form.description.value|default:'' }}" placeholder="What is this variable?" /></td>
+                            <td>
+                                <select class="variable-input" name="{{ var_form.required.html_name }}">
+                                    <option value="True" {% if var_form.required.value %}selected{% endif %}>Required</option>
+                                    <option value="False" {% if not var_form.required.value %}selected{% endif %}>Optional</option>
+                                </select>
+                            </td>
+                            <td><button type="button" class="btn-remove" onclick="removeVariable(this)">×</button></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Editor + Guide -->
+        <div class="editor-row" id="editor-row">
+
+            <div class="editor-card">
+                <div class="editor-toolbar">
+                    <span class="editor-lang">bash / powershell</span>
+                    <span class="editor-hint">Use {% templatetag openvariable %} variable_name {% templatetag closevariable %} for dynamic values</span>
+                </div>
+                <textarea class="code-area" name="content">{{ form.content.value|default:'' }}</textarea>
+            </div>
+
+            <div class="guide-panel" id="guide-panel">
+                <div class="guide-header" onclick="toggleGuide()">
+                    <span class="guide-title" id="guide-title">Syntax guide</span>
+                    <span class="guide-toggle" id="guide-toggle">▶</span>
+                </div>
+                <div class="guide-body" id="guide-body">
+
+                    <div class="guide-section">
+                        <div class="guide-section-title">Using variables</div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} variable_name {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Insert a variable value. Must be defined in the variables table above.</div>
+                        </div>
+                    </div>
+
+                    <hr class="guide-divider">
+
+                    <div class="guide-section">
+                        <div class="guide-section-title">System variables</div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} hostname {% templatetag closevariable %}</div>
+                            <div class="guide-desc">VM hostname</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} ip_address {% templatetag closevariable %}</div>
+                            <div class="guide-desc">VM IP address</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} node {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Proxmox node name</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} cores {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Number of CPU cores</div>
+                        </div>
+                        <div class="guide-item">
+                            <div class="guide-code">{% templatetag openvariable %} memory {% templatetag closevariable %}</div>
+                            <div class="guide-desc">Memory in MB</div>
+                        </div>
+                    </div>
+
+                    <hr class="guide-divider">
+
+                    <div class="guide-section">
+                        <div class="guide-section-title">Tips</div>
+                        <div class="guide-desc" style="line-height: 1.7;">
+                            • Variables are case sensitive<br>
+                            • Use underscores for multi-word keys<br>
+                            • Works with bash, PowerShell, Python<br>
+                            • Script is rendered server side before being sent to the VM<br>
+                            • Leave default values blank if the variable must always be set at deploy time
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+        </div>
+
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script src="{% static 'js/script_edit.js' %}"></script>
+{% endblock %}
