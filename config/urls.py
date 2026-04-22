@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.urls import path, include
 from django.contrib.auth import views as auth_views
-
+ 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('config/', include('apps.config_server.urls')),
@@ -10,4 +10,5 @@ urlpatterns = [
     path('accounts/logout/', auth_views.LogoutView.as_view(), name='logout'),
     path('accounts/', include('apps.users.urls')),
     path('ranges/', include('apps.ranges.urls')),
+    path('inbox/', include('apps.inbox.urls')),
 ]

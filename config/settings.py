@@ -51,6 +51,7 @@ INSTALLED_APPS = [
     'apps.dashboard',
     'apps.ranges',
     'apps.users',
+    'apps.inbox',
 ]
 
 MIDDLEWARE = [

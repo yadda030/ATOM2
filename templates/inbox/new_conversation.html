@@ -1,0 +1,51 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — New Message{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/inbox.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div style="display:flex; align-items:center; gap:12px;">
+            <a href="{% url 'inbox' %}" class="btn-outline">← Back</a>
+            <div class="page-title">New message</div>
+        </div>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    <div class="panel">
+        <div class="panel-header">Compose</div>
+        <div class="panel-body">
+            <form method="post" action="{% url 'new_conversation' %}">
+                {% csrf_token %}
+                <div class="form-group">
+                    <label class="form-label">To <span class="required">*</span></label>
+                    <select class="form-input" name="recipient" required>
+                        <option value="">Select a user...</option>
+                        {% for user in users %}
+                        <option value="{{ user.pk }}">{{ user.username }}{% if user.first_name or user.last_name %} — {{ user.first_name }} {{ user.last_name }}{% endif %}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Message <span class="required">*</span></label>
+                    <textarea class="form-input compose-textarea" name="body" rows="5" placeholder="Type your message..." required></textarea>
+                </div>
+                <div style="display:flex; gap:10px; margin-top:4px;">
+                    <button type="submit" class="btn-primary">Send message</button>
+                    <a href="{% url 'inbox' %}" class="btn-outline">Cancel</a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

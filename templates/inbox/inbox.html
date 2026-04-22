@@ -1,0 +1,63 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Inbox{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/inbox.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="page">
+    <div class="page-header">
+        <div class="page-title">
+            Inbox
+            {% if total_unread %}
+            <span class="unread-badge">{{ total_unread }}</span>
+            {% endif %}
+        </div>
+        <a href="{% url 'new_conversation' %}" class="btn-primary">+ New message</a>
+    </div>
+
+    {% if messages %}
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">{{ message }}</div>
+        {% endfor %}
+    {% endif %}
+
+    {% if conversations %}
+    <div class="conversation-list">
+        {% for conv in conversations %}
+        <a href="{% url 'conversation' conv.pk %}" class="conversation-item {% if conv.unread %}unread{% endif %}">
+            <div class="conversation-avatar">
+                {{ conv.other_user.username|first|upper }}
+            </div>
+            <div class="conversation-info">
+                <div class="conversation-header">
+                    <span class="conversation-name">{{ conv.other_user.username }}</span>
+                    {% if conv.last_message %}
+                    <span class="conversation-time">{{ conv.last_message.created_at|timesince }} ago</span>
+                    {% endif %}
+                </div>
+                <div class="conversation-preview">
+                    {% if conv.last_message %}
+                        {% if conv.last_message.sender == request.user %}You: {% endif %}
+                        {{ conv.last_message.body|truncatechars:60 }}
+                    {% else %}
+                        No messages yet.
+                    {% endif %}
+                </div>
+            </div>
+            {% if conv.unread %}
+            <div class="conversation-unread-dot">{{ conv.unread }}</div>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        No conversations yet. <a href="{% url 'new_conversation' %}">Start one</a>.
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

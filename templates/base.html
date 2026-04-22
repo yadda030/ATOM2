@@ -22,6 +22,10 @@
         <a href="{% url 'range_list' %}" class="nav-link">Ranges</a>
         <a href="{% url 'script_list' %}" class="nav-link">Scripts</a>
         <a href="{% url 'template_list' %}" class="nav-link">Templates</a>
+        <a href="{% url 'inbox' %}" class="nav-link" id="nav-inbox-link">
+            Messages
+            <span class="nav-inbox-badge" id="nav-inbox-badge" style="display:none;"></span>
+        </a>
         {% endif %}
     </div>
 
@@ -41,6 +45,32 @@
 <main class="main-content">
     {% block content %}{% endblock %}
 </main>
+
+{% if request.user.is_authenticated %}
+<script>
+(function() {
+    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/inbox/`);
+    const badge = document.getElementById('nav-inbox-badge');
+
+    socket.onmessage = function(e) {
+        const data = JSON.parse(e.data);
+        if (data.event === 'new_message' && badge) {
+            badge.textContent = '';
+            badge.style.display = 'inline-block';
+        }
+        if (data.event === 'unread_messages' && badge) {
+            if (data.unread_count > 0) {
+                badge.textContent = data.unread_count;
+                badge.style.display = 'inline-block';
+            } else {
+                badge.style.display = 'none';
+            }
+        }
+    };
+})();
+</script>
+{% endif %}
 
 {% block extra_scripts %}{% endblock %}
 </body>
