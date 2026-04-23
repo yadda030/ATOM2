@@ -89,3 +89,15 @@ body {
 .main-content {
     min-height: calc(100vh - 56px);
 }
+
+.nav-unread-dot {
+    display: inline-block;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #378add;
+    margin-left: 5px;
+    vertical-align: middle;
+    position: relative;
+    top: -1px;
+}

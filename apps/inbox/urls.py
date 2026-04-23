@@ -7,4 +7,5 @@ urlpatterns = [
     path('<int:pk>/', views.inbox, name='conversation'),
     path('<int:pk>/send/', views.send_message, name='send_message'),
     path('<int:pk>/thread/', views.thread_partial, name='thread_partial'),
+    path('unread-count/', views.unread_count, name='inbox_unread_count'),
 ]

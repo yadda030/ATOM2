@@ -24,7 +24,7 @@
         <a href="{% url 'template_list' %}" class="nav-link">Templates</a>
         <a href="{% url 'inbox' %}" class="nav-link" id="nav-inbox-link">
             Messages
-            <span class="nav-inbox-badge" id="nav-inbox-badge" style="display:none;"></span>
+            <span class="nav-unread-dot" id="nav-inbox-badge" style="display:none;"></span>
         </a>
         {% endif %}
     </div>
@@ -53,19 +53,21 @@
     const socket = new WebSocket(`${protocol}://${window.location.host}/ws/inbox/`);
     const badge = document.getElementById('nav-inbox-badge');
 
+    // Check unread count on page load
+    fetch('/inbox/unread-count/')
+        .then(r => r.json())
+        .then(data => {
+            if (badge && data.count > 0) {
+                badge.style.display = 'inline-block';
+            }
+        })
+        .catch(() => {});
+
     socket.onmessage = function(e) {
         const data = JSON.parse(e.data);
-        if (data.event === 'new_message' && badge) {
-            badge.textContent = '';
-            badge.style.display = 'inline-block';
-        }
-        if (data.event === 'unread_messages' && badge) {
-            if (data.unread_count > 0) {
-                badge.textContent = data.unread_count;
-                badge.style.display = 'inline-block';
-            } else {
-                badge.style.display = 'none';
-            }
+        if ((data.event === 'new_message' || data.event === 'unread_messages') && badge) {
+            const hasUnread = data.event === 'new_message' || data.unread_count > 0;
+            badge.style.display = hasUnread ? 'inline-block' : 'none';
         }
     };
 })();

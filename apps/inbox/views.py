@@ -2,7 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from .models import Conversation, Message
 
 User = get_user_model()
@@ -18,6 +18,10 @@ def _get_conversations(user):
         conv.last_message = conv.messages.last()
     return conversations
 
+@login_required
+def unread_count(request):
+    count = _total_unread(request.user)
+    return JsonResponse({'count': count})
 
 @login_required
 def inbox(request, pk=None):
