@@ -1,0 +1,46 @@
+<div class="thread-header">
+    <div class="thread-header-avatar">{{ other_user.username|first|upper }}</div>
+    <div>
+        <div class="thread-header-name">{{ other_user.username }}</div>
+        <div class="thread-header-presence">{{ presence }}</div>
+    </div>
+</div>
+
+<div class="message-thread" id="message-thread">
+    {% for msg in thread_messages %}
+    <div class="message-row {% if msg.sender == request.user %}mine{% else %}theirs{% endif %}" id="msg-{{ msg.id }}">
+        <div class="message-bubble">{{ msg.body }}</div>
+        <div class="message-meta">
+            {{ msg.created_at|date:"M j, H:i" }}
+            {% if msg.sender == request.user %}
+            · {% if msg.is_read %}<span style="color:#3b6d11;">Read</span>{% else %}Sent{% endif %}
+            {% endif %}
+        </div>
+    </div>
+    {% empty %}
+    <div style="text-align:center; color:#8a9bb0; font-size:13px; padding:40px 0;">
+        No messages yet. Say hello!
+    </div>
+    {% endfor %}
+</div>
+
+<div class="message-compose">
+    <form id="compose-form"
+          hx-post="{% url 'send_message' conv.pk %}"
+          hx-target="#thread-panel"
+          hx-swap="innerHTML"
+          hx-on::after-request="this.reset(); document.getElementById('compose-input').style.height='auto';">
+        {% csrf_token %}
+        <div class="compose-row">
+            <textarea
+                class="compose-input"
+                name="body"
+                placeholder="Type a message..."
+                rows="1"
+                id="compose-input"
+                required
+            ></textarea>
+            <button type="submit" class="compose-send">Send</button>
+        </div>
+    </form>
+</div>

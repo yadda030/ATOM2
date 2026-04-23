@@ -2,43 +2,86 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.http import HttpResponse
 from .models import Conversation, Message
 
 User = get_user_model()
 
 
-@login_required
-def inbox(request):
-    conversations = request.user.conversations.prefetch_related(
+def _get_conversations(user):
+    conversations = user.conversations.prefetch_related(
         'participants', 'messages'
     ).order_by('-updated_at')
-
-    # Annotate each conversation with unread count and other participant
     for conv in conversations:
-        conv.other_user = conv.other_participant(request.user)
-        conv.unread = conv.unread_count(request.user)
+        conv.other_user = conv.other_participant(user)
+        conv.unread = conv.unread_count(user)
         conv.last_message = conv.messages.last()
+    return conversations
 
+
+@login_required
+def inbox(request, pk=None):
+    conversations = _get_conversations(request.user)
     total_unread = sum(c.unread for c in conversations)
+
+    active_conv = None
+    thread_messages = []
+    other_user = None
+    presence = ''
+
+    if pk:
+        active_conv = get_object_or_404(Conversation, pk=pk)
+
+        if not request.user.is_staff and request.user not in active_conv.participants.all():
+            messages.error(request, 'You do not have permission to view this conversation.')
+            return redirect('inbox')
+
+        # Mark messages as read
+        active_conv.messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
+
+        thread_messages = active_conv.messages.select_related('sender').all()
+        other_user = active_conv.other_participant(request.user)
+        presence = other_user.presence_display if other_user else ''
 
     return render(request, 'inbox/inbox.html', {
         'conversations': conversations,
         'total_unread': total_unread,
+        'active_conv': active_conv,
+        'thread_messages': thread_messages,
+        'other_user': other_user,
+        'presence': presence,
     })
 
 
 @login_required
-def conversation(request, pk):
+def thread_partial(request, pk):
+    """HTMX partial — returns just the thread panel for a given conversation."""
     conv = get_object_or_404(Conversation, pk=pk)
 
-    # Only participants and admins can view
     if not request.user.is_staff and request.user not in conv.participants.all():
-        messages.error(request, 'You do not have permission to view this conversation.')
-        return redirect('inbox')
+        return HttpResponse(status=403)
 
-    # Mark all messages from the other user as read
     conv.messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
+
+    thread_messages = conv.messages.select_related('sender').all()
+    other_user = conv.other_participant(request.user)
+    presence = other_user.presence_display if other_user else ''
+
+    return render(request, 'inbox/thread_partial.html', {
+        'conv': conv,
+        'thread_messages': thread_messages,
+        'other_user': other_user,
+        'presence': presence,
+    })
+
+
+@login_required
+def send_message(request, pk):
+    """POST only — sends a message and returns the updated thread partial."""
+    conv = get_object_or_404(Conversation, pk=pk)
+
+    if not request.user.is_staff and request.user not in conv.participants.all():
+        return HttpResponse(status=403)
 
     if request.method == 'POST':
         body = request.POST.get('body', '').strip()
@@ -48,21 +91,18 @@ def conversation(request, pk):
                 sender=request.user,
                 body=body,
             )
-            # Update conversation timestamp
             conv.save()
-
-            # Push to recipient via WebSocket
             _push_message(conv, msg)
 
-        return redirect('conversation', pk=pk)
-
-    all_messages = conv.messages.select_related('sender').all()
+    thread_messages = conv.messages.select_related('sender').all()
     other_user = conv.other_participant(request.user)
+    presence = other_user.presence_display if other_user else ''
 
-    return render(request, 'inbox/conversation.html', {
+    return render(request, 'inbox/thread_partial.html', {
         'conv': conv,
-        'messages': all_messages,
+        'thread_messages': thread_messages,
         'other_user': other_user,
+        'presence': presence,
     })
 
 
@@ -87,8 +127,6 @@ def new_conversation(request):
             body=body,
         )
         conv.save()
-
-        # Push to recipient via WebSocket
         _push_message(conv, msg)
 
         return redirect('conversation', pk=conv.pk)
@@ -99,7 +137,6 @@ def new_conversation(request):
 
 
 def _push_message(conv, msg):
-    """Push a new message to the recipient's inbox WebSocket group."""
     try:
         from channels.layers import get_channel_layer
         from asgiref.sync import async_to_sync
@@ -122,13 +159,11 @@ def _push_message(conv, msg):
             }
         }
 
-        # Push to recipient
         async_to_sync(channel_layer.group_send)(
             f'inbox_{recipient.id}',
             payload,
         )
 
-        # Also push unread count update to recipient's dashboard group
         async_to_sync(channel_layer.group_send)(
             f'dashboard_{recipient.id}',
             {
