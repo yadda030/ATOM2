@@ -1,5 +1,8 @@
-Run "docker compose build"
+Copy the .env.example to .env (Keep the .env.example)
+Change required variables
+
+Run: docker compose build
+
 IF the container stands up, with no problems, run:
     "docker exec -it atom2 python manage.py createsuperuser"
     enter in the details
-
