@@ -51,6 +51,9 @@
         {% endfor %}
     {% endif %}
 
+    <!-- Network diagram -->
+    {% include 'ranges/partials/network_diagram.html' with diagram=diagram %}
+
     <!-- Networks -->
     {% if networks %}
     <div class="panel" style="margin-bottom:16px;">

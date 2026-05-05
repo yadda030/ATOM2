@@ -43,14 +43,13 @@
                 {% endfor %}
             </div>
             <div class="template-actions">
+                <a href="{% url 'template_view' template.pk %}" class="btn-sm btn-edit">View</a>
                 {% if template.can_edit %}
                 <a href="{% url 'template_edit' template.pk %}" class="btn-sm btn-edit">Edit</a>
                 <form method="post" action="{% url 'template_delete' template.pk %}" style="display:inline;">
                     {% csrf_token %}
                     <button type="submit" class="btn-sm btn-delete" onclick="return confirm('Delete this template?')">Delete</button>
                 </form>
-                {% else %}
-                <a href="{% url 'template_view' template.pk %}" class="btn-sm btn-edit">View</a>
                 {% endif %}
             </div>
         </div>
