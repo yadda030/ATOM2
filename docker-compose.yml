@@ -14,7 +14,7 @@ services:
       - redis
 
   db:
-    container_name: atom2-db
+    container_name: ${COMPOSE_PROJECT_NAME}-db
     image: postgres:15
     volumes:
       - postgres_data:/var/lib/postgresql/data/
@@ -24,11 +24,11 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
 
   redis:
-    container_name: atom2-redis
+    container_name: ${COMPOSE_PROJECT_NAME}-redis
     image: redis:alpine
 
   celery:
-    container_name: atom2-celery
+    container_name: ${COMPOSE_PROJECT_NAME}-celery
     build: .
     entrypoint: []
     command: celery -A config worker --loglevel=info
@@ -41,7 +41,7 @@ services:
       - redis
 
   celery-beat:
-    container_name: atom2-celery-beat
+    container_name: ${COMPOSE_PROJECT_NAME}-celery-beat
     build: .
     entrypoint: []
     command: celery -A config beat --loglevel=info
@@ -54,7 +54,7 @@ services:
       - redis
 
   nginx:
-    container_name: atom2-nginx
+    container_name: ${COMPOSE_PROJECT_NAME}-nginx
     image: nginx:alpine
     ports:
       - "8000:80"

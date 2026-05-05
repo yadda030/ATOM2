@@ -92,15 +92,23 @@ def template_step1(request, pk=None):
 @login_required
 def template_view(request, pk):
     template = get_object_or_404(RangeTemplate, pk=pk)
-
+ 
     if not template.is_public and template.created_by != request.user:
         messages.error(request, 'You do not have permission to view this template.')
         return redirect('template_list')
-
+ 
+    from .diagram import build_template_diagram
+    diagram = None
+    try:
+        diagram = build_template_diagram(template)
+    except Exception:
+        pass
+ 
     return render(request, 'ranges/template_view.html', {
         'template': template,
         'networks': template.networks.all(),
         'vms': template.vm_templates.all(),
+        'diagram': diagram,
     })
 
 
@@ -452,10 +460,19 @@ def range_detail(request, pk):
     vms = deployment.vms.all()
     networks = deployment.networks.all()
 
+    from .diagram import build_deployment_diagram
+    diagram = None
+    try:
+        diagram = build_deployment_diagram(deployment)
+    except Exception as e:
+        print(f"DIAGRAM ERROR: {e}")
+        diagram = None
+
     context = {
         'deployment': deployment,
         'vms': vms,
         'networks': networks,
+        'diagram': diagram,
     }
     return render(request, 'ranges/range_detail.html', context)
 
