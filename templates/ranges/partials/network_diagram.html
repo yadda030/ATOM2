@@ -1,5 +1,5 @@
 {% comment %}
-Network diagram partial.
+Network diagram partial — swimlane edition.
 Context: diagram — dict from build_template_diagram() or build_deployment_diagram()
 {% endcomment %}
 
@@ -11,137 +11,156 @@ Context: diagram — dict from build_template_diagram() or build_deployment_diag
         <svg
             viewBox="0 0 {{ diagram.svg_width }} {{ diagram.svg_height }}"
             width="100%"
-            style="display:block;"
-            data-minwidth="{{ diagram.svg_width }}"
+            style="display:block; min-width:{{ diagram.svg_width }}px;"
             role="img"
             aria-label="Network topology diagram">
 
-            <defs>
-                <marker id="nd-arrow" viewBox="0 0 10 10" refX="8" refY="5"
-                        markerWidth="5" markerHeight="5" orient="auto-start-reverse">
-                    <path d="M2 1L8 5L2 9" fill="none" stroke="context-stroke"
-                          stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-                </marker>
-            </defs>
-
-            {# ── 1. Outer zone rects ──────────────────────────────────────── #}
+            {# ── 1. Network band backgrounds ─────────────────────────────── #}
             {% for zone in diagram.zones %}
-            <g>
-                <rect x="{{ zone.x }}" y="{{ zone.y }}"
-                      width="{{ zone.w }}" height="{{ zone.h }}"
-                      rx="12" fill="none"
-                      stroke="{{ zone.stroke }}" stroke-width="0.5"
-                      stroke-dasharray="6 3" opacity="0.7"/>
-                <text x="{{ zone.x|add:12 }}" y="{{ zone.y|add:20 }}"
-                      font-size="12" font-weight="600"
-                      fill="{{ zone.label_color }}"
-                      font-family="sans-serif">{{ zone.label }}</text>
-                {% if zone.sublabel %}
-                <text x="{{ zone.x|add:12 }}" y="{{ zone.y|add:33 }}"
-                      font-size="10" fill="{{ zone.label_color }}"
-                      opacity="0.65" font-family="sans-serif">{{ zone.sublabel }}</text>
-                {% endif %}
-            </g>
+            <rect x="{{ zone.x }}" y="{{ zone.y }}"
+                  width="{{ zone.w }}" height="{{ zone.h }}"
+                  fill="{{ zone.band_color }}" opacity="0.5"/>
             {% endfor %}
 
-            {# ── Unconnected outer zone ───────────────────────────────────── #}
+            {# ── Unconnected band background ─────────────────────────────── #}
             {% if diagram.unconnected_zone %}
             {% with z=diagram.unconnected_zone %}
             <rect x="{{ z.x }}" y="{{ z.y }}"
                   width="{{ z.w }}" height="{{ z.h }}"
-                  rx="12" fill="none"
-                  stroke="{{ z.stroke }}" stroke-width="0.5"
-                  stroke-dasharray="4 2" opacity="0.4"/>
-            <text x="{{ z.x|add:12 }}" y="{{ z.y|add:20 }}"
-                  font-size="12" fill="{{ z.label_color }}"
+                  fill="{{ z.band_color }}" opacity="0.4"/>
+            {% endwith %}
+            {% endif %}
+
+            {# ── 2. Network band dividers ─────────────────────────────────── #}
+            {% for zone in diagram.zones %}
+            <line x1="{{ zone.x }}" y1="{{ zone.y|add:zone.h }}"
+                  x2="{{ zone.w }}" y2="{{ zone.y|add:zone.h }}"
+                  stroke="#dce6ef" stroke-width="1"/>
+            {% endfor %}
+
+            {# ── 3. Left label column divider ────────────────────────────── #}
+            <line x1="64" y1="0" x2="64" y2="{{ diagram.svg_height }}"
+                  stroke="#dce6ef" stroke-width="0.5" stroke-dasharray="3 2"/>
+
+            {# ── 4. Network + VLAN labels ────────────────────────────────── #}
+            {% for zone in diagram.zones %}
+            <text x="4" y="{{ zone.y|add:16 }}"
+                  font-size="11" font-weight="700"
+                  fill="{{ zone.label_color }}"
+                  font-family="sans-serif">{{ zone.label }}</text>
+            {% if zone.sublabel %}
+            <text x="4" y="{{ zone.y|add:28 }}"
+                  font-size="8" fill="{{ zone.label_color }}"
+                  opacity="0.7" font-family="sans-serif">{{ zone.sublabel }}</text>
+            {% endif %}
+            {% endfor %}
+
+            {% if diagram.unconnected_zone %}
+            {% with z=diagram.unconnected_zone %}
+            <text x="4" y="{{ z.y|add:16 }}"
+                  font-size="11" font-weight="700"
+                  fill="{{ z.label_color }}"
                   font-family="sans-serif">{{ z.label }}</text>
             {% endwith %}
             {% endif %}
 
-            {# ── 2. VLAN group rects ──────────────────────────────────────── #}
+            {# ── 5. VLAN sub-row dividers + labels ───────────────────────── #}
             {% for vr in diagram.vlan_rects %}
-            <g>
-                <rect x="{{ vr.x }}" y="{{ vr.y }}"
-                      width="{{ vr.w }}" height="{{ vr.h }}"
-                      rx="7"
-                      fill="{{ vr.fill }}"
-                      stroke="{{ vr.stroke }}" stroke-width="0.5"
-                      opacity="0.8"/>
-                <text x="{{ vr.x|add:8 }}" y="{{ vr.y|add:16 }}"
-                      font-size="10" font-weight="500"
-                      fill="{{ vr.label_color }}"
-                      font-family="sans-serif"
-                      opacity="0.8">{{ vr.label }}</text>
-            </g>
+            {% if vr.is_divider %}
+            <line x1="{{ vr.x1 }}" y1="{{ vr.y1 }}"
+                  x2="{{ vr.x2 }}" y2="{{ vr.y2 }}"
+                  stroke="{{ vr.color }}" stroke-width="0.5"
+                  stroke-dasharray="4 2"/>
+            {% endif %}
+            <text x="{{ vr.label_x }}" y="{{ vr.label_y }}"
+                  font-size="9" font-weight="600"
+                  fill="{{ vr.label_color }}"
+                  font-family="sans-serif"
+                  opacity="0.7">{{ vr.label }}</text>
             {% endfor %}
 
-            {# ── 3. Edges ─────────────────────────────────────────────────── #}
+            {# ── 6. Edges ─────────────────────────────────────────────────── #}
             {% for edge in diagram.edges %}
+            {% if edge.dashed %}
             <line x1="{{ edge.x1 }}" y1="{{ edge.y1 }}"
                   x2="{{ edge.x2 }}" y2="{{ edge.y2 }}"
                   stroke="{{ edge.color }}" stroke-width="1"
-                  marker-end="url(#nd-arrow)"
-                  marker-start="url(#nd-arrow)"
+                  stroke-dasharray="4 3" opacity="0.4"/>
+            {% else %}
+            <line x1="{{ edge.x1 }}" y1="{{ edge.y1 }}"
+                  x2="{{ edge.x2 }}" y2="{{ edge.y2 }}"
+                  stroke="{{ edge.color }}" stroke-width="2"
                   opacity="0.5"/>
+            {% endif %}
             {% endfor %}
 
-            {# ── 4. VM cards ──────────────────────────────────────────────── #}
+            {# ── 7. VM cards ──────────────────────────────────────────────── #}
             {% for node in diagram.nodes %}
             <g>
+                {# Card background #}
                 <rect x="{{ node.x }}" y="{{ node.y }}"
                       width="{{ node.w }}" height="{{ node.h }}"
                       rx="6"
                       fill="{{ node.fill }}"
-                      stroke="{{ node.stroke }}" stroke-width="0.5"/>
-                <text x="{{ node.x|add:74 }}" y="{{ node.y|add:15 }}"
-                      font-size="12" font-weight="500"
+                      stroke="{{ node.stroke }}"
+                      stroke-width="{% if node.multihomed %}2{% else %}1{% endif %}"/>
+
+                {# VM name #}
+                <text x="{{ node.x|add:59 }}" y="{{ node.y|add:20 }}"
+                      font-size="11" font-weight="600"
                       fill="{{ node.text_color }}"
                       text-anchor="middle"
-                      font-family="sans-serif">{{ node.label|truncatechars:18 }}</text>
+                      font-family="sans-serif">{{ node.label|truncatechars:20 }}</text>
+
+                {# IP address (deployment mode) #}
                 {% if node.ip %}
-                <text x="{{ node.x|add:74 }}" y="{{ node.y|add:30 }}"
-                      font-size="11" fill="{{ node.text_color }}"
+                <text x="{{ node.x|add:59 }}" y="{{ node.y|add:33 }}"
+                      font-size="9" fill="{{ node.text_color }}"
                       text-anchor="middle" opacity="0.75"
                       font-family="sans-serif">{{ node.ip }}</text>
                 {% endif %}
+
+                {# Status dot (deployment mode) #}
                 {% if node.status and diagram.mode == 'deployment' %}
-                <circle cx="{{ node.x|add:138 }}" cy="{{ node.y|add:10 }}"
+                <circle cx="{{ node.x|add:110 }}" cy="{{ node.y|add:10 }}"
                         r="4" fill="{{ node.stroke }}"/>
                 {% endif %}
+
+                {# Network membership dots #}
+                {% for dot in node.net_dots %}
+                <circle cx="{{ node.x|add:8|add:forloop.counter0|add:forloop.counter0|add:forloop.counter0|add:forloop.counter0|add:forloop.counter0|add:forloop.counter0|add:forloop.counter0|add:forloop.counter0 }}"
+                        cy="{{ node.y|add:44 }}"
+                        r="3" fill="{{ dot.color }}"/>
+                {% endfor %}
+
             </g>
             {% endfor %}
 
         </svg>
 
-        <script>
-        document.querySelectorAll('svg[data-minwidth]').forEach(function(svg) {
-            svg.style.minWidth = svg.dataset.minwidth + 'px';
-        });
-        </script>
-
         {# ── Legend ───────────────────────────────────────────────────────── #}
         {% if diagram.legend %}
-            <div style="display:flex; flex-wrap:wrap; gap:14px; padding:12px 16px;
-                        border-top:0.5px solid #dce6ef; font-size:12px; color:#5c6e82;">
-                {% for item in diagram.legend %}
-                <div style="display:flex; align-items:center; gap:6px;">
-                    {% if item.square %}
-                    <span class="nd-legend-dot" data-color="{{ item.color }}"
-                        style="width:10px; height:10px; border-radius:2px; display:inline-block;"></span>
-                    {% else %}
-                    <span class="nd-legend-dot" data-color="{{ item.color }}"
-                        style="width:10px; height:10px; border-radius:50%; display:inline-block;"></span>
-                    {% endif %}
-                    <span>{{ item.label }}</span>
-                </div>
-                {% endfor %}
+        <div style="display:flex; flex-wrap:wrap; gap:14px; padding:10px 16px;
+                    border-top:0.5px solid #dce6ef; font-size:12px; color:#5c6e82;
+                    align-items:center;">
+            {% for item in diagram.legend %}
+            <div style="display:flex; align-items:center; gap:6px;">
+                <span style="width:{% if item.square %}10px{% else %}20px{% endif %};
+                             height:{% if item.square %}10px{% else %}3px{% endif %};
+                             border-radius:{% if item.square %}2px{% else %}2px{% endif %};
+                             background:{{ item.color }};
+                             display:inline-block;
+                             border-radius:{% if item.square %}2px{% else %}2px{% endif %};">
+                </span>
+                <span>{{ item.label }}</span>
             </div>
-            <script>
-            document.querySelectorAll('.nd-legend-dot').forEach(function(el) {
-                el.style.background = el.dataset.color;
-            });
-            </script>
+            {% endfor %}
+            <span style="color:#b0bec8; font-size:11px; margin-left:8px;">
+                Bold border = multi-homed · Dashed = cross-network link
+            </span>
+        </div>
         {% endif %}
+
     </div>
 </div>
 {% endif %}

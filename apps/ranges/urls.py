@@ -15,8 +15,8 @@ urlpatterns = [
     path('templates/<int:pk>/networks/<int:net_pk>/edit/', views.network_edit, name='network_edit'),
     path('templates/<int:pk>/networks/<int:net_pk>/delete/', views.network_delete, name='network_delete'),
     # VM Network interfaces
-path('templates/<int:pk>/vms/<int:vm_pk>/networks/add/', views.vm_network_add, name='vm_network_add'),
-path('templates/<int:pk>/vms/<int:vm_pk>/networks/<int:iface_pk>/delete/', views.vm_network_delete, name='vm_network_delete'),
+    path('templates/<int:pk>/vms/<int:vm_pk>/networks/add/', views.vm_network_add, name='vm_network_add'),
+    path('templates/<int:pk>/vms/<int:vm_pk>/networks/<int:iface_pk>/delete/', views.vm_network_delete, name='vm_network_delete'),
     # VM CRUD
     path('templates/<int:pk>/vms/add/', views.vm_add, name='vm_add'),
     path('templates/<int:pk>/vms/<int:vm_pk>/edit/', views.vm_edit, name='vm_edit'),
@@ -35,4 +35,6 @@ path('templates/<int:pk>/vms/<int:vm_pk>/networks/<int:iface_pk>/delete/', views
     path('<int:pk>/vms/<int:vm_pk>/stop/', views.vm_stop, name='vm_stop'),
 
     path('grid/', views.range_grid, name='range_grid'),
+
+    path('<int:pk>/partial/', views.range_detail_partial, name='range_detail_partial'),
 ]

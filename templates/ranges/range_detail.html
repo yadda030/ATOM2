@@ -18,7 +18,9 @@
             </div>
         </div>
         <div style="display:flex; gap:10px; align-items:center;">
-            <span class="badge badge-{{ deployment.status }}" id="deployment-badge">{{ deployment.get_status_display }}</span>
+            <span class="badge badge-{{ deployment.status }}" id="deployment-status-badge">
+                {{ deployment.get_status_display }}
+            </span>
             {% if deployment.status == 'stopped' %}
             <form method="post" action="{% url 'range_start' deployment.pk %}" style="display:inline;">
                 {% csrf_token %}
@@ -34,7 +36,8 @@
             {% if deployment.status in 'running,stopped,fragmented,error' %}
             <form method="post" action="{% url 'range_destroy' deployment.pk %}" style="display:inline;">
                 {% csrf_token %}
-                <button type="submit" class="btn-sm btn-destroy" onclick="return confirm('Destroy all VMs in this range?')">Destroy</button>
+                <button type="submit" class="btn-sm btn-destroy"
+                    onclick="return confirm('Destroy all VMs in this range?')">Destroy</button>
             </form>
             {% endif %}
             <form method="post" action="{% url 'range_archive' deployment.pk %}" style="display:inline;">
@@ -51,107 +54,27 @@
         {% endfor %}
     {% endif %}
 
-    <!-- Network diagram -->
-    {% include 'ranges/partials/network_diagram.html' with diagram=diagram %}
-
-    <!-- Networks -->
-    {% if networks %}
-    <div class="panel" style="margin-bottom:16px;">
-        <div class="panel-header">Networks</div>
-        <div class="panel-body">
-            <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:10px;">
-                {% for network in networks %}
-                <div class="saved-item">
-                    <div>
-                        <div class="saved-item-name">{{ network.name }}</div>
-                        <div class="saved-item-meta">
-                            {% if network.subnet %}{{ network.subnet }}{% endif %}
-                            {% if network.proxmox_sdn_vnet %} · {{ network.proxmox_sdn_vnet }}{% endif %}
-                        </div>
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-        </div>
+    <!-- Live updating section — diagram + VM cards (HTMX polls every 30s) -->
+    <div id="range-live"
+        hx-get="{% url 'range_detail_partial' deployment.pk %}"
+        hx-trigger="load, every 30s"
+        hx-swap="innerHTML">
+        {% include 'ranges/partials/range_detail_partial.html' with diagram=diagram %}
     </div>
-    {% endif %}
 
-    <!-- VMs -->
-    <div class="panel">
-        <div class="panel-header">Virtual machines ({{ vms.count }})</div>
-        <div class="panel-body">
-            {% if vms %}
-            <div style="display:grid; grid-template-columns: repeat(3,1fr); gap:12px;">
-                {% for vm in vms %}
-                <div class="vm-detail-card" id="vm-card-{{ vm.id }}">
-                    <div class="vm-detail-header">
-                        <div>
-                            <div class="vm-detail-name">{{ vm.name }}</div>
-                            <div class="vm-detail-meta">
-                                {{ vm.node }} · VMID {{ vm.proxmox_vmid|default:"pending" }}
-                            </div>
-                            <div class="vm-detail-meta">
-                                {% if vm.vm_template %}
-                                {{ vm.vm_template.cores }} cores · {{ vm.vm_template.memory }}MB
-                                {% endif %}
-                            </div>
-                        </div>
-                        <span class="badge badge-{{ vm.status }}" id="vm-badge-{{ vm.id }}">{{ vm.get_status_display }}</span>
-                    </div>
-                    {% if vm.nics.all %}
-                        {% for nic in vm.nics.all %}
-                        <div class="vm-detail-mac">net{{ nic.interface_index }}: {{ nic.mac_address }}</div>
-                        {% endfor %}
-                    {% elif vm.mac_address %}
-                        <div class="vm-detail-mac">net0: {{ vm.mac_address }}</div>
-                    {% endif %}
-                    {% if vm.machine_config %}
-                    <div class="vm-detail-checkin">
-                        {% if vm.machine_config.has_checked_in %}
-                        <span style="color:#3b6d11; font-size:12px;">✓ Checked in {{ vm.machine_config.last_checkin|timesince }} ago</span>
-                        {% else %}
-                        <span style="color:#8a9bb0; font-size:12px;">Waiting for check-in...</span>
-                        {% endif %}
-                    </div>
-                    {% endif %}
-                    <div class="vm-detail-actions" id="vm-actions-{{ vm.id }}"
-                        data-vm-pk="{{ vm.pk }}"
-                        data-deployment-pk="{{ deployment.pk }}"
-                        data-start-url="{% url 'vm_start' deployment.pk vm.pk %}"
-                        data-stop-url="{% url 'vm_stop' deployment.pk vm.pk %}"
-                        data-csrf="{{ csrf_token }}">
-                        {% if vm.status == 'stopped' %}
-                        <form method="post" action="{% url 'vm_start' deployment.pk vm.pk %}" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-sm btn-start">Start</button>
-                        </form>
-                        {% endif %}
-                        {% if vm.status == 'running' %}
-                        <form method="post" action="{% url 'vm_stop' deployment.pk vm.pk %}" style="display:inline;">
-                            {% csrf_token %}
-                            <button type="submit" class="btn-sm btn-stop">Stop</button>
-                        </form>
-                        {% endif %}
-                    </div>
-                </div>
-                {% endfor %}
-            </div>
-            {% else %}
-            <div class="empty-state">No VMs deployed yet.</div>
-            {% endif %}
-        </div>
-    </div>
 </div>
+
+<!-- WebSocket config -->
+<div id="range-detail-config"
+     data-user-id="{{ request.user.id }}"
+     data-deployment-id="{{ deployment.id }}"
+     style="display:none;">
+</div>
+
 {% endblock %}
 
 {% block extra_scripts %}
 {% load static %}
-<div id="range-detail-config"
-     data-deployment-id="{{ deployment.id }}"
-     style="display:none;">
-</div>
-<script>
-    const DEPLOYMENT_ID = parseInt(document.getElementById('range-detail-config').dataset.deploymentId);
-</script>
+<script src="{% static 'js/websocket.js' %}"></script>
 <script src="{% static 'js/range_detail.js' %}"></script>
 {% endblock %}

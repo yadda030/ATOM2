@@ -1,66 +1,53 @@
 """
-Network diagram layout engine for Atom2.
+Network diagram layout engine for Atom2 — Swimlane edition.
 
-Hierarchy:
-  Outer zone  — one per RangeTemplateNetwork / RangeNetwork
-    VLAN group  — one per distinct VLAN tag used on NICs in this zone
-                  (plus one "Untagged" group for NICs with no tag)
-      VM card   — name + IP (deployment mode) or name only (template mode)
+Layout hierarchy:
+  Network band  — one horizontal band per RangeTemplateNetwork / RangeNetwork
+    VLAN sub-row  — one sub-row per distinct VLAN tag within the band
+                    (plus one "Untagged" sub-row for NICs with no tag)
+      VM card     — one card per VM per (network, vlan) combination
+                    Multi-homed VMs appear once per band they belong to,
+                    linked by a dashed vertical connector line.
 
-VMs with NICs on multiple networks appear in each relevant zone/VLAN group.
-Dual-homed VMs (NICs on 2+ different outer zones) are placed on the boundary.
+Edges:
+  Solid horizontal lines connect VMs within the same network + VLAN sub-row.
+  Dashed vertical lines link the same VM across different bands/sub-rows.
 """
 
 # ── Constants ────────────────────────────────────────────────────────────────
 
-PADDING_OUTER   = 24
-ZONE_TOP        = 24
-ZONE_GAP        = 16      # horizontal gap between outer zones
+LEFT_LABEL_W    = 64      # width of the left label column
+COL_W           = 165     # width of each VM card column (including gap)
+VM_W            = 152     # VM card width
+VM_H            = 52      # VM card height
+VM_GAP          = 12      # horizontal gap between VM cards
+VM_PAD_TOP      = 24      # vertical padding above first card in sub-row
+VM_PAD_BOT      = 10      # vertical padding below last card in sub-row
 
-ZONE_HEADER_H   = 36      # outer zone label area
-VLAN_HEADER_H   = 24      # inner VLAN group label area
-VLAN_PAD_H      = 10      # horizontal padding inside VLAN group
-VLAN_PAD_V      = 10      # vertical padding inside VLAN group
-VLAN_GAP        = 10      # vertical gap between VLAN groups
-ZONE_PAD_H      = 12      # horizontal padding inside outer zone
-ZONE_PAD_BOT    = 16      # bottom padding inside outer zone
+SUBROW_H        = VM_H + VM_PAD_TOP + VM_PAD_BOT   # height of one VLAN sub-row
+NET_DIVIDER     = 1       # px of divider between networks
 
-VM_W            = 148
-VM_H            = 42
-VM_GAP          = 10      # vertical gap between VM cards
-
-MIN_VLAN_W      = VM_W + VLAN_PAD_H * 2
-MIN_ZONE_W      = MIN_VLAN_W + ZONE_PAD_H * 2
-
-SVG_MIN_WIDTH   = 680
+SVG_MIN_W       = 700
+SVG_PAD_TOP     = 8
+SVG_PAD_BOT     = 16
 
 # ── Colour maps ──────────────────────────────────────────────────────────────
 
-ZONE_COLORS = [
-    {'zone_stroke': '#378add', 'zone_fill': 'none',
-     'vlan_stroke': '#378add', 'vlan_fill': '#EEF6FC',
-     'vm_fill': '#E6F1FB',    'vm_stroke': '#378add',
-     'text': '#0C447C',       'sub': '#185fa5', 'label': '#185fa5'},
+NET_COLORS = [
+    {'band': '#EEF6FC', 'stroke': '#378add', 'label': '#185fa5',
+     'vlan_div': '#c5dff5', 'edge': '#378add'},
 
-    {'zone_stroke': '#1D9E75', 'zone_fill': 'none',
-     'vlan_stroke': '#1D9E75', 'vlan_fill': '#EAF7F2',
-     'vm_fill': '#E1F5EE',    'vm_stroke': '#1D9E75',
-     'text': '#085041',       'sub': '#0F6E56', 'label': '#0F6E56'},
+    {'band': '#EAF7F2', 'stroke': '#1D9E75', 'label': '#0F6E56',
+     'vlan_div': '#b5e8d5', 'edge': '#1D9E75'},
 
-    {'zone_stroke': '#BA7517', 'zone_fill': 'none',
-     'vlan_stroke': '#BA7517', 'vlan_fill': '#FBF3E4',
-     'vm_fill': '#FAEEDA',    'vm_stroke': '#BA7517',
-     'text': '#412402',       'sub': '#854F0B', 'label': '#854F0B'},
+    {'band': '#FBF3E4', 'stroke': '#BA7517', 'label': '#854F0B',
+     'vlan_div': '#f0d5a0', 'edge': '#BA7517'},
 
-    {'zone_stroke': '#7F77DD', 'zone_fill': 'none',
-     'vlan_stroke': '#7F77DD', 'vlan_fill': '#F2F1FE',
-     'vm_fill': '#EEEDFE',    'vm_stroke': '#7F77DD',
-     'text': '#26215C',       'sub': '#534AB7', 'label': '#534AB7'},
+    {'band': '#F2F1FE', 'stroke': '#7F77DD', 'label': '#534AB7',
+     'vlan_div': '#cccaf5', 'edge': '#7F77DD'},
 
-    {'zone_stroke': '#D85A30', 'zone_fill': 'none',
-     'vlan_stroke': '#D85A30', 'vlan_fill': '#FDF0EC',
-     'vm_fill': '#FAECE7',    'vm_stroke': '#D85A30',
-     'text': '#4A1B0C',       'sub': '#993C1D', 'label': '#993C1D'},
+    {'band': '#FDF0EC', 'stroke': '#D85A30', 'label': '#993C1D',
+     'vlan_div': '#f5c9b8', 'edge': '#D85A30'},
 ]
 
 STATUS_COLORS = {
@@ -70,10 +57,7 @@ STATUS_COLORS = {
     'pending': {'fill': '#E6F1FB', 'stroke': '#378add', 'text': '#0C447C'},
 }
 
-UNCONNECTED_COLOR = {
-    'zone_stroke': '#B4B2A9', 'vlan_stroke': '#B4B2A9', 'vlan_fill': '#F5F4F0',
-    'vm_fill': '#F1EFE8', 'vm_stroke': '#B4B2A9', 'text': '#444441', 'label': '#5F5E5A',
-}
+DEFAULT_VM_COLOR = {'fill': '#F5F4F0', 'stroke': '#B4B2A9', 'text': '#444441'}
 
 
 # ── Public entry points ──────────────────────────────────────────────────────
@@ -94,237 +78,234 @@ def build_deployment_diagram(deployment):
         .prefetch_related('vm_template__network_interfaces__network')
         .all()
     )
+    # Strip deployment name prefix from VM display names
+    prefix = deployment.name + '-'
+    for vm in vms:
+        vm.display_name = vm.name[len(prefix):] if vm.name.startswith(prefix) else vm.name
     return _build(networks, vms, mode='deployment')
 
 
 # ── Core ─────────────────────────────────────────────────────────────────────
 
 def _build(networks, vms, mode):
-    net_color  = {n.pk: ZONE_COLORS[i % len(ZONE_COLORS)] for i, n in enumerate(networks)}
-    net_index  = {n.pk: i for i, n in enumerate(networks)}
-
-    # ── Gather NIC data per VM ───────────────────────────────────────────────
-    # vm_nics[vm.pk] = list of (network_pk, vlan_tag or None)
+    # ── 1. Resolve NIC memberships ───────────────────────────────────────────
     vm_nics = {}
     for vm in vms:
         vm_nics[vm.pk] = _get_nics(vm, networks, mode)
 
-    # ── Build VLAN groups per network ────────────────────────────────────────
-    # vlan_groups[net_pk][vlan_tag_or_None] = [vm, ...]
-    vlan_groups = {n.pk: {} for n in networks}
-    unconnected_vms = []
+    # ── 2. Group VMs into (net_pk, vlan_tag) buckets ─────────────────────────
+    buckets = {}
+    unconnected = []
 
     for vm in vms:
         nics = vm_nics[vm.pk]
         if not nics:
-            unconnected_vms.append(vm)
+            unconnected.append(vm)
             continue
-        seen_in_zone = {}   # net_pk → set of vlan_tags already placed
-        for net_pk, vlan_tag in nics:
-            if net_pk not in vlan_groups:
-                continue
-            key = vlan_tag  # None = untagged
-            seen = seen_in_zone.setdefault(net_pk, set())
+        seen = set()
+        for net_pk, vlan in nics:
+            key = (net_pk, vlan)
             if key in seen:
-                continue    # don't duplicate within same zone/vlan
+                continue
             seen.add(key)
-            vlan_groups[net_pk].setdefault(key, []).append(vm)
+            buckets.setdefault(key, []).append(vm)
 
-    # ── Compute sizes ────────────────────────────────────────────────────────
-    def vlan_group_height(vm_count):
-        return VLAN_HEADER_H + VLAN_PAD_V + vm_count * VM_H + (vm_count - 1) * VM_GAP + VLAN_PAD_V
+    # ── 3. Build per-network VLAN lists ──────────────────────────────────────
+    net_vlans = {}
+    for net in networks:
+        vlans_seen = set()
+        for (npk, vlan) in buckets.keys():
+            if npk == net.pk:
+                vlans_seen.add(vlan)
+        net_vlans[net.pk] = sorted(vlans_seen, key=lambda v: (v is None, v or 0))
 
-    def zone_height(net_pk):
-        groups = vlan_groups[net_pk]
-        if not groups:
-            return ZONE_HEADER_H + vlan_group_height(0) + ZONE_PAD_BOT
-        total = ZONE_HEADER_H
-        for vms_in_group in groups.values():
-            total += vlan_group_height(len(vms_in_group)) + VLAN_GAP
-        total += ZONE_PAD_BOT
-        return total
+    # ── 4. Assign column positions ───────────────────────────────────────────
+    vm_col = {}
+    next_col = 0
 
-    def zone_width(_net_pk):
-        return MIN_ZONE_W
+    for (net_pk, vlan), row_vms in buckets.items():
+        for vm in row_vms:
+            if vm.pk not in vm_col:
+                vm_col[vm.pk] = next_col
+                next_col += 1
 
-    # ── Layout zones left-to-right ───────────────────────────────────────────
-    zones_out   = []
-    vlan_rects  = []   # rendered VLAN group boxes
-    nodes_out   = []
-    node_centers = {}  # vm_pk → list of (cx, cy) — one per placement
+    for vm in unconnected:
+        if vm.pk not in vm_col:
+            vm_col[vm.pk] = next_col
+            next_col += 1
 
-    x_cursor = PADDING_OUTER
-    zone_bounds = {}   # net_pk → (x, y, w, h)
+    max_col = max(next_col, 1)
 
-    for i, net in enumerate(networks):
-        color = net_color[net.pk]
-        w = zone_width(net.pk)
-        h = zone_height(net.pk)
-        zx, zy = x_cursor, ZONE_TOP
+    # ── 5. Compute SVG width ─────────────────────────────────────────────────
+    svg_w = max(SVG_MIN_W, LEFT_LABEL_W + max_col * COL_W + VM_GAP)
 
-        zone_bounds[net.pk] = (zx, zy, w, h)
+    # ── 6. Build output lists ─────────────────────────────────────────────────
+    zones_out    = []
+    vlan_rects   = []
+    nodes_out    = []
+    edges_out    = []
+    legend       = []
+    vm_centers   = {}   # vm.pk → list of (cx, cy)
 
-        sublabel = ''
-        if hasattr(net, 'subnet') and net.subnet:
-            sublabel = net.subnet
-        if hasattr(net, 'proxmox_sdn_vnet') and net.proxmox_sdn_vnet:
-            sublabel = (sublabel + ' · ' if sublabel else '') + net.proxmox_sdn_vnet
+    y_cursor = SVG_PAD_TOP
+
+    for net_idx, net in enumerate(networks):
+        color = NET_COLORS[net_idx % len(NET_COLORS)]
+        vlans = net_vlans.get(net.pk, [])
+        if not vlans:
+            vlans = [None]
+
+        band_h = len(vlans) * SUBROW_H
+        band_y = y_cursor
 
         zones_out.append({
-            'x': zx, 'y': zy, 'w': w, 'h': h,
+            'x': 0, 'y': band_y, 'w': svg_w, 'h': band_h,
             'label': net.name,
-            'sublabel': sublabel,
-            'stroke': color['zone_stroke'],
+            'sublabel': _net_sublabel(net),
+            'stroke': color['stroke'],
             'label_color': color['label'],
+            'band_color': color['band'],
         })
 
-        # Place VLAN groups top-to-bottom inside zone
-        vy = zy + ZONE_HEADER_H
-        groups = vlan_groups[net.pk]
-        sorted_keys = sorted(groups.keys(), key=lambda k: (k is None, k))
+        for vlan_idx, vlan in enumerate(vlans):
+            subrow_y = band_y + vlan_idx * SUBROW_H
+            vlan_label = f'VLAN {vlan}' if vlan is not None else 'Untagged'
 
-        for vlan_key in sorted_keys:
-            vms_in_group = groups[vlan_key]
-            gh = vlan_group_height(len(vms_in_group))
-            gx = zx + ZONE_PAD_H
-            gw = w - ZONE_PAD_H * 2
+            if vlan_idx > 0:
+                vlan_rects.append({
+                    'x1': LEFT_LABEL_W, 'y1': subrow_y,
+                    'x2': svg_w,        'y2': subrow_y,
+                    'color': color['vlan_div'],
+                    'label': vlan_label,
+                    'label_x': LEFT_LABEL_W + 4,
+                    'label_y': subrow_y + 12,
+                    'label_color': color['label'],
+                    'is_divider': True,
+                })
+            else:
+                vlan_rects.append({
+                    'x1': 0, 'y1': 0, 'x2': 0, 'y2': 0,
+                    'color': 'none',
+                    'label': vlan_label,
+                    'label_x': LEFT_LABEL_W + 4,
+                    'label_y': subrow_y + 12,
+                    'label_color': color['label'],
+                    'is_divider': False,
+                })
 
-            vlan_label = f'VLAN {vlan_key}' if vlan_key is not None else 'Untagged'
+            row_vms = buckets.get((net.pk, vlan), [])
+            card_y = subrow_y + VM_PAD_TOP
+            card_cx_list = []
 
-            vlan_rects.append({
-                'x': gx, 'y': vy, 'w': gw, 'h': gh,
-                'label': vlan_label,
-                'stroke': color['vlan_stroke'],
-                'fill': color['vlan_fill'],
-                'label_color': color['label'],
-            })
+            for vm in row_vms:
+                col = vm_col.get(vm.pk, 0)
+                card_x = LEFT_LABEL_W + col * COL_W
+                status = _vm_status(vm, mode)
+                ip     = _vm_ip(vm, mode)
+                vc     = _vm_color(status)
+                is_multihomed = len(vm_nics.get(vm.pk, [])) > 1
+                net_dots = _net_dots(vm, networks, vm_nics)
 
-            # Place VMs inside VLAN group
-            vm_y = vy + VLAN_HEADER_H + VLAN_PAD_V
-            vm_x = gx + VLAN_PAD_H
-            for vm in vms_in_group:
-                status  = _vm_status(vm, mode)
-                ip      = _vm_ip(vm, mode)
-                vc      = _vm_color(status, color)
                 nodes_out.append({
                     'id':         vm.pk,
-                    'label':      vm.name,
+                    'label':      getattr(vm, 'display_name', vm.name),
                     'ip':         ip,
-                    'x':          round(vm_x),
-                    'y':          round(vm_y),
+                    'x':          card_x,
+                    'y':          card_y,
                     'w':          VM_W,
                     'h':          VM_H,
                     'fill':       vc['fill'],
                     'stroke':     vc['stroke'],
                     'text_color': vc['text'],
                     'status':     status or '',
+                    'multihomed': is_multihomed,
+                    'net_dots':   net_dots,
                 })
-                cx = vm_x + VM_W / 2
-                cy = vm_y + VM_H / 2
-                node_centers.setdefault(vm.pk, []).append((round(cx), round(cy)))
-                vm_y += VM_H + VM_GAP
 
-            vy += gh + VLAN_GAP
+                cx = card_x + VM_W // 2
+                cy = card_y + VM_H // 2
+                vm_centers.setdefault(vm.pk, []).append((cx, cy))
+                card_cx_list.append((cx, cy))
 
-        x_cursor += w + ZONE_GAP
+            # Horizontal edges within sub-row
+            for i in range(len(card_cx_list) - 1):
+                x1, y1 = card_cx_list[i]
+                x2, y2 = card_cx_list[i + 1]
+                edges_out.append({
+                    'x1': x1, 'y1': y1,
+                    'x2': x2, 'y2': y2,
+                    'color': color['edge'],
+                    'dashed': False,
+                })
 
-    # ── Unconnected zone ─────────────────────────────────────────────────────
+        y_cursor += band_h + NET_DIVIDER
+
+    # ── Unconnected VMs ───────────────────────────────────────────────────────
     unconnected_zone = None
-    if unconnected_vms:
-        gh = vlan_group_height(len(unconnected_vms))
-        w  = MIN_ZONE_W
-        h  = ZONE_HEADER_H + gh + ZONE_PAD_BOT
-        zx, zy = x_cursor, ZONE_TOP
+    if unconnected:
+        band_y = y_cursor
+        band_h = SUBROW_H
+        uc = {'band': '#F5F4F0', 'stroke': '#B4B2A9',
+              'label': '#5F5E5A', 'edge': '#B4B2A9'}
         unconnected_zone = {
-            'x': zx, 'y': zy, 'w': w, 'h': h,
+            'x': 0, 'y': band_y, 'w': svg_w, 'h': band_h,
             'label': 'No network', 'sublabel': '',
-            'stroke': '#B4B2A9', 'label_color': '#5F5E5A',
+            'stroke': uc['stroke'], 'label_color': uc['label'],
+            'band_color': uc['band'],
         }
-        vy = zy + ZONE_HEADER_H
-        vlan_rects.append({
-            'x': zx + ZONE_PAD_H, 'y': vy,
-            'w': w - ZONE_PAD_H * 2, 'h': gh,
-            'label': 'Untagged',
-            'stroke': '#B4B2A9', 'fill': '#F5F4F0',
-            'label_color': '#5F5E5A',
-        })
-        vm_y = vy + VLAN_HEADER_H + VLAN_PAD_V
-        for vm in unconnected_vms:
+        card_y = band_y + VM_PAD_TOP
+        card_cx_list = []
+        for vm in unconnected:
+            col = vm_col.get(vm.pk, 0)
+            card_x = LEFT_LABEL_W + col * COL_W
             status = _vm_status(vm, mode)
-            ip     = _vm_ip(vm, mode)
-            vc     = _vm_color(status, UNCONNECTED_COLOR)
+            vc = _vm_color(status)
             nodes_out.append({
-                'id': vm.pk, 'label': vm.name, 'ip': ip,
-                'x': round(zx + ZONE_PAD_H + VLAN_PAD_H),
-                'y': round(vm_y),
-                'w': VM_W, 'h': VM_H,
+                'id': vm.pk, 'label': getattr(vm, 'display_name', vm.name), 'ip': _vm_ip(vm, mode),
+                'x': card_x, 'y': card_y, 'w': VM_W, 'h': VM_H,
                 'fill': vc['fill'], 'stroke': vc['stroke'],
                 'text_color': vc['text'], 'status': status or '',
+                'multihomed': False, 'net_dots': [],
             })
-            node_centers.setdefault(vm.pk, []).append((
-                round(zx + ZONE_PAD_H + VLAN_PAD_H + VM_W / 2),
-                round(vm_y + VM_H / 2),
-            ))
-            vm_y += VM_H + VM_GAP
-        x_cursor += w + ZONE_GAP
+            cx = card_x + VM_W // 2
+            cy = card_y + VM_H // 2
+            vm_centers.setdefault(vm.pk, []).append((cx, cy))
+            card_cx_list.append((cx, cy))
+        for i in range(len(card_cx_list) - 1):
+            x1, y1 = card_cx_list[i]
+            x2, y2 = card_cx_list[i + 1]
+            edges_out.append({'x1': x1, 'y1': y1, 'x2': x2, 'y2': y2,
+                               'color': uc['edge'], 'dashed': False})
+        y_cursor += band_h
 
-    # ── SVG dimensions ───────────────────────────────────────────────────────
-    svg_width  = max(SVG_MIN_WIDTH, x_cursor - ZONE_GAP + PADDING_OUTER)
-    all_heights = [z['h'] for z in zones_out]
-    if unconnected_zone:
-        all_heights.append(unconnected_zone['h'])
-    svg_height = ZONE_TOP + (max(all_heights) if all_heights else 200) + 48
-
-    # ── Edges ────────────────────────────────────────────────────────────────
-    # Draw an edge between each pair of VM placements that share a network
-    edges_out  = []
-    seen_pairs = set()
-
-    for i, vm_a in enumerate(vms):
-        for vm_b in vms[i + 1:]:
-            nics_a = set((npk, vt) for npk, vt in vm_nics.get(vm_a.pk, []))
-            nics_b = set((npk, vt) for npk, vt in vm_nics.get(vm_b.pk, []))
-            shared = nics_a & nics_b
-            if not shared:
-                continue
-            pair = (min(vm_a.pk, vm_b.pk), max(vm_a.pk, vm_b.pk))
-            if pair in seen_pairs:
-                continue
-            seen_pairs.add(pair)
-
-            centers_a = node_centers.get(vm_a.pk, [])
-            centers_b = node_centers.get(vm_b.pk, [])
-            if not centers_a or not centers_b:
-                continue
-
-            # Use the centres closest to each other
-            cx1, cy1 = centers_a[0]
-            cx2, cy2 = centers_b[0]
-
-            shared_net_pk = next(iter(shared))[0]
-            edge_color = net_color.get(shared_net_pk, ZONE_COLORS[0])['zone_stroke']
-
+    # ── Vertical dashed connectors for multi-homed VMs ───────────────────────
+    for vm_pk, centers in vm_centers.items():
+        if len(centers) < 2:
+            continue
+        sorted_c = sorted(centers, key=lambda c: c[1])
+        for i in range(len(sorted_c) - 1):
+            x1, y1 = sorted_c[i]
+            x2, y2 = sorted_c[i + 1]
             edges_out.append({
-                'x1': cx1, 'y1': cy1,
-                'x2': cx2, 'y2': cy2,
-                'color': edge_color,
+                'x1': x1, 'y1': y1 + VM_H // 2,
+                'x2': x2, 'y2': y2 - VM_H // 2,
+                'color': '#aaaaaa',
+                'dashed': True,
             })
 
-    # ── Legend ───────────────────────────────────────────────────────────────
-    legend = []
-    for net in networks:
-        legend.append({
-            'label': net.name,
-            'color': net_color[net.pk]['zone_stroke'],
-            'square': False,
-        })
+    # ── Legend ────────────────────────────────────────────────────────────────
+    for i, net in enumerate(networks):
+        c = NET_COLORS[i % len(NET_COLORS)]
+        legend.append({'label': net.name, 'color': c['edge'], 'square': False})
     if mode == 'deployment':
         for s, c in STATUS_COLORS.items():
             legend.append({'label': s.capitalize(), 'color': c['stroke'], 'square': True})
 
+    svg_h = y_cursor + SVG_PAD_BOT
+
     return {
-        'svg_width':        round(svg_width),
-        'svg_height':       round(svg_height),
+        'svg_width':        round(svg_w),
+        'svg_height':       round(svg_h),
         'zones':            zones_out,
         'unconnected_zone': unconnected_zone,
         'vlan_rects':       vlan_rects,
@@ -338,11 +319,6 @@ def _build(networks, vms, mode):
 # ── Helpers ──────────────────────────────────────────────────────────────────
 
 def _get_nics(vm, networks, mode):
-    """
-    Return list of (network_pk, vlan_tag_or_None) for each NIC on this VM,
-    in interface_index order. Duplicate (net_pk, vlan) pairs are kept so a
-    VM appears in each zone it belongs to.
-    """
     net_pks = {n.pk for n in networks}
     result  = []
 
@@ -350,7 +326,7 @@ def _get_nics(vm, networks, mode):
         ifaces = sorted(vm.network_interfaces.all(), key=lambda i: i.interface_index)
         for iface in ifaces:
             if iface.network_id and iface.network_id in net_pks:
-                result.append((iface.network_id, iface.vlan_tag))
+                result.append((iface.network_id, getattr(iface, 'vlan_tag', None)))
 
     else:  # deployment
         if not vm.vm_template:
@@ -359,19 +335,71 @@ def _get_nics(vm, networks, mode):
             vm.vm_template.network_interfaces.all(),
             key=lambda i: i.interface_index,
         )
-        # Map template network pk → deployment network pk
+
         tmpl_to_deploy = {}
         for dn in networks:
             if hasattr(dn, 'copied_from_id') and dn.copied_from_id:
                 tmpl_to_deploy[dn.copied_from_id] = dn.pk
 
-        for iface in ifaces:
-            if iface.network_id:
-                deploy_pk = tmpl_to_deploy.get(iface.network_id)
-                if deploy_pk and deploy_pk in net_pks:
-                    result.append((deploy_pk, iface.vlan_tag))
+        if not tmpl_to_deploy:
+            deploy_by_vnet = {}
+            deploy_by_name = {}
+            for dn in networks:
+                if hasattr(dn, 'proxmox_sdn_vnet') and dn.proxmox_sdn_vnet:
+                    deploy_by_vnet[dn.proxmox_sdn_vnet] = dn.pk
+                if hasattr(dn, 'name') and dn.name:
+                    deploy_by_name[dn.name] = dn.pk
+
+            for iface in ifaces:
+                vlan = getattr(iface, 'vlan_tag', None)
+                if iface.network_id and iface.network:
+                    deploy_pk = (
+                        deploy_by_vnet.get(iface.network.proxmox_sdn_vnet) or
+                        deploy_by_name.get(iface.network.name)
+                    )
+                    if deploy_pk:
+                        result.append((deploy_pk, vlan))
+                elif iface.manual_vnet:
+                    deploy_pk = deploy_by_vnet.get(iface.manual_vnet)
+                    if deploy_pk:
+                        result.append((deploy_pk, vlan))
+        else:
+            for iface in ifaces:
+                vlan = getattr(iface, 'vlan_tag', None)
+                if iface.network_id:
+                    deploy_pk = tmpl_to_deploy.get(iface.network_id)
+                    if deploy_pk and deploy_pk in net_pks:
+                        result.append((deploy_pk, vlan))
 
     return result
+
+
+def _net_dots(vm, networks, vm_nics):
+    net_map = {n.pk: n for n in networks}
+    net_color_map = {n.pk: NET_COLORS[i % len(NET_COLORS)]
+                     for i, n in enumerate(networks)}
+    seen = set()
+    dots = []
+    for net_pk, vlan in vm_nics.get(vm.pk, []):
+        if net_pk in seen:
+            continue
+        seen.add(net_pk)
+        net = net_map.get(net_pk)
+        color = net_color_map.get(net_pk, {})
+        dots.append({
+            'color': color.get('edge', '#888'),
+            'label': net.name if net else '',
+        })
+    return dots
+
+
+def _net_sublabel(net):
+    parts = []
+    if getattr(net, 'subnet', None):
+        parts.append(net.subnet)
+    if getattr(net, 'proxmox_sdn_vnet', None):
+        parts.append(net.proxmox_sdn_vnet)
+    return ' · '.join(parts)
 
 
 def _vm_status(vm, mode):
@@ -387,11 +415,7 @@ def _vm_ip(vm, mode):
     return ''
 
 
-def _vm_color(status, zone_color):
+def _vm_color(status):
     if status and status in STATUS_COLORS:
         return STATUS_COLORS[status]
-    return {
-        'fill':   zone_color.get('vm_fill',   '#F1EFE8'),
-        'stroke': zone_color.get('vm_stroke', '#B4B2A9'),
-        'text':   zone_color.get('text',      '#444441'),
-    }
+    return DEFAULT_VM_COLOR

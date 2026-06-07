@@ -1,57 +1,47 @@
-(function () {
-    const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/dashboard/`);
+document.addEventListener('DOMContentLoaded', function() {
+    const config = document.getElementById('range-detail-config');
+    if (!config) return;
 
-    socket.onmessage = function (e) {
-        const data = JSON.parse(e.data);
+    const userId = config.dataset.userId;
+    const deploymentId = config.dataset.deploymentId;
 
-        if (!data.deployment_id || data.deployment_id !== DEPLOYMENT_ID) return;
+    const STATUS_CLASSES = {
+        'running': { badge: 'badge-running', text: 'Running' },
+        'stopped': { badge: 'badge-stopped', text: 'Stopped' },
+        'error':   { badge: 'badge-error',   text: 'Error' },
+        'pending': { badge: 'badge-pending', text: 'Pending' },
+    };
 
-        // Handle deployment-level status update
-        if (data.deployment_status) {
-            const deploymentBadge = document.getElementById('deployment-badge');
-            if (deploymentBadge) {
-                deploymentBadge.className = `badge badge-${data.deployment_status}`;
-                deploymentBadge.textContent = data.deployment_status_display;
-            }
-        }
+    new Atom2Socket(userId, {
+        onVMStatus: function(data) {
+            if (String(data.deployment_id) !== String(deploymentId)) return;
 
-        // Handle VM-level status update
-        if (data.vm_id) {
-            const badge = document.getElementById(`vm-badge-${data.vm_id}`);
-            const actions = document.getElementById(`vm-actions-${data.vm_id}`);
+            const vmCard = document.getElementById(`vm-card-${data.vm_id}`);
+            if (vmCard) {
+                const badge = vmCard.querySelector('.badge');
+                const statusInfo = STATUS_CLASSES[data.status] || {};
 
-            if (badge) {
-                badge.className = `badge badge-${data.status}`;
-                badge.textContent = data.status_display;
-            }
-
-            if (actions) {
-                const startUrl = actions.dataset.startUrl;
-                const stopUrl = actions.dataset.stopUrl;
-                const csrf = actions.dataset.csrf;
-
-                if (data.status === 'stopped') {
-                    actions.innerHTML = `
-                        <form method="post" action="${startUrl}" style="display:inline;">
-                            <input type="hidden" name="csrfmiddlewaretoken" value="${csrf}">
-                            <button type="submit" class="btn-sm btn-start">Start</button>
-                        </form>`;
-                } else if (data.status === 'running') {
-                    actions.innerHTML = `
-                        <form method="post" action="${stopUrl}" style="display:inline;">
-                            <input type="hidden" name="csrfmiddlewaretoken" value="${csrf}">
-                            <button type="submit" class="btn-sm btn-stop">Stop</button>
-                        </form>`;
-                } else {
-                    // pending / error — no actions
-                    actions.innerHTML = '';
+                if (badge) {
+                    badge.className = `badge ${statusInfo.badge || ''}`;
+                    badge.textContent = data.status_display || data.status;
                 }
+
+                const startBtn = vmCard.querySelector('.vm-start-btn');
+                const stopBtn  = vmCard.querySelector('.vm-stop-btn');
+                if (startBtn) startBtn.style.display = data.status === 'stopped' ? 'inline' : 'none';
+                if (stopBtn)  stopBtn.style.display  = data.status === 'running'  ? 'inline' : 'none';
+            }
+        },
+
+        onDeploymentStatus: function(data) {
+            if (String(data.deployment_id) !== String(deploymentId)) return;
+
+            const deployBadge = document.getElementById('deployment-status-badge');
+            if (deployBadge) {
+                const statusInfo = STATUS_CLASSES[data.deployment_status] || {};
+                deployBadge.className = `badge ${statusInfo.badge || ''}`;
+                deployBadge.textContent = data.deployment_status_display || data.deployment_status;
             }
         }
-    };
-
-    socket.onclose = function () {
-        console.log('WS closed');
-    };
-})();
+    });
+});

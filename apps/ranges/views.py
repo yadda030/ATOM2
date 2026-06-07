@@ -458,7 +458,6 @@ def range_deploy(request):
 def range_detail(request, pk):
     deployment = get_object_or_404(RangeDeployment, pk=pk, user=request.user)
     vms = deployment.vms.all()
-    networks = deployment.networks.all()
 
     from .diagram import build_deployment_diagram
     diagram = None
@@ -466,12 +465,10 @@ def range_detail(request, pk):
         diagram = build_deployment_diagram(deployment)
     except Exception as e:
         print(f"DIAGRAM ERROR: {e}")
-        diagram = None
 
     context = {
         'deployment': deployment,
         'vms': vms,
-        'networks': networks,
         'diagram': diagram,
     }
     return render(request, 'ranges/range_detail.html', context)
@@ -610,4 +607,24 @@ def range_grid(request):
 
     return render(request, 'ranges/partials/range_grid.html', {
         'deployments': deployments,
+    })
+
+@login_required
+def range_detail_partial(request, pk):
+    deployment = get_object_or_404(RangeDeployment, pk=pk, user=request.user)
+    vms = deployment.vms.all()
+    networks = deployment.networks.all()
+
+    from .diagram import build_deployment_diagram
+    diagram = None
+    try:
+        diagram = build_deployment_diagram(deployment)
+    except Exception as e:
+        print(f"DIAGRAM ERROR: {e}")
+
+    return render(request, 'ranges/partials/range_detail_partial.html', {
+        'deployment': deployment,
+        'vms': vms,
+        'networks': networks,
+        'diagram': diagram,
     })

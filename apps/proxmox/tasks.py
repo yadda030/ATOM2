@@ -11,6 +11,7 @@ from asgiref.sync import async_to_sync
 
 User = get_user_model()
 
+
 @shared_task
 def poll_all_users():
     """
@@ -24,6 +25,7 @@ def poll_all_users():
             poll_user_vms.delay(user.id)
     return f"Dispatched polling for {users.count()} users"
 
+
 @shared_task
 def poll_user_vms(user_id):
     try:
@@ -34,7 +36,7 @@ def poll_user_vms(user_id):
 
         deployments = RangeDeployment.objects.filter(
             user=user,
-            status__in=['deploying', 'running', 'stopped']
+            status__in=['deploying', 'running', 'stopped', 'fragmented']
         )
 
         channel_layer = get_channel_layer()
@@ -52,15 +54,12 @@ def poll_user_vms(user_id):
                     vm.save()
                 except Exception as e:
                     error_msg = str(e)
-                    # 500/404 from Proxmox means the VM no longer exists on the cluster
                     if '500' in error_msg or '404' in error_msg or 'does not exist' in error_msg:
                         vm.status = 'error'
                     else:
-                        # Connectivity issue — don't flip to error, leave status as-is
-                        # so a transient Proxmox blip doesn't falsely fragment a range
                         pass
                     vm.save()
-                
+
                 # Push to browser whenever status changes
                 if vm.status != previous_status:
                     try:
@@ -78,11 +77,10 @@ def poll_user_vms(user_id):
                         )
                     except Exception:
                         pass
-            
+
             vm_statuses = set(deployment.vms.values_list('status', flat=True))
 
             if not vm_statuses:
-                # No VMs yet — leave deployment status alone
                 continue
 
             if vm_statuses == {'running'}:
@@ -96,7 +94,6 @@ def poll_user_vms(user_id):
                 deployment.status = new_deployment_status
                 deployment.save()
 
-                # Push deployment status update to browser too
                 try:
                     async_to_sync(channel_layer.group_send)(
                         f'dashboard_{user.id}',
@@ -111,7 +108,7 @@ def poll_user_vms(user_id):
                     )
                 except Exception:
                     pass
-        
+
         return f"Polled VMs for user {user.username}"
 
     except User.DoesNotExist:
@@ -119,10 +116,11 @@ def poll_user_vms(user_id):
     except Exception as e:
         return f"Error polling VMs: {str(e)}"
 
+
 @shared_task
 def deploy_range(deployment_id):
     try:
-        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog
+        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog, RangeNetwork
         deployment = RangeDeployment.objects.get(id=deployment_id)
         user = deployment.user
 
@@ -145,6 +143,23 @@ def deploy_range(deployment_id):
         deployment.status = 'deploying'
         deployment.save()
 
+        # Copy networks from template to deployment
+        template_networks = deployment.range_template.networks.all()
+        range_network_map = {}  # template network pk → RangeNetwork instance
+
+        for tmpl_net in template_networks:
+            range_net = RangeNetwork.objects.create(
+                deployment=deployment,
+                name=tmpl_net.name,
+                proxmox_sdn_zone=tmpl_net.proxmox_sdn_zone,
+                proxmox_sdn_vnet=tmpl_net.proxmox_sdn_vnet,
+                subnet=tmpl_net.subnet,
+                gateway=tmpl_net.gateway,
+                auto_assign_ips=tmpl_net.auto_assign_ips,
+                copied_from=tmpl_net,
+            )
+            range_network_map[tmpl_net.pk] = range_net
+
         vm_templates = deployment.range_template.vm_templates.all()
 
         for vm_template in vm_templates:
@@ -164,23 +179,27 @@ def deploy_range(deployment_id):
                 # Wait for clone to complete
                 _wait_for_task(user, vm_template.node, upid)
 
-                # Configure network interfaces
+                # Configure network interfaces from VMTemplateNetwork records
                 try:
                     network_interfaces = vm_template.network_interfaces.all()
                     if network_interfaces:
                         nic_config = {}
                         for iface in network_interfaces:
-                            if iface.network:
+                            if iface.network_id and iface.network_id in range_network_map:
+                                vnet = range_network_map[iface.network_id].proxmox_sdn_vnet
+                            elif iface.network:
                                 vnet = iface.network.proxmox_sdn_vnet
                             elif iface.manual_vnet:
                                 vnet = iface.manual_vnet
                             else:
                                 continue
 
-                            net_str = f'virtio,bridge={vnet}'
-                            if iface.vlan_tag:
-                                net_str += f',tag={iface.vlan_tag}'
-                            nic_config[f'net{iface.interface_index}'] = net_str
+                            if vnet:
+                                nic_key = f'net{iface.interface_index}'
+                                if iface.vlan_tag:
+                                    nic_config[nic_key] = f'virtio,bridge={vnet},tag={iface.vlan_tag}'
+                                else:
+                                    nic_config[nic_key] = f'virtio,bridge={vnet}'
 
                         if nic_config:
                             services.update_vm_config(user, vm_template.node, newid, **nic_config)
@@ -195,11 +214,9 @@ def deploy_range(deployment_id):
                     except Exception as e:
                         print(f"Warning: Could not add VM to pool: {e}")
 
-                # Get VM config to capture MAC address
+                # Get VM config to capture all MAC addresses
                 config = services.get_vm_config(user, vm_template.node, newid)
                 all_macs = _extract_all_macs(config)
-
-                # net0 MAC is used as the primary MAC for script check-in
                 primary_mac = all_macs.get(0)
 
                 # Create DeployedVM record
@@ -213,25 +230,27 @@ def deploy_range(deployment_id):
                     node=vm_template.node,
                 )
 
-                # Store all NIC MACs
-                for index, mac in all_macs.items():
+                # Store all NIC MACs in DeployedVMNIC records
+                for iface_index, mac in all_macs.items():
                     DeployedVMNIC.objects.create(
                         deployed_vm=deployed_vm,
-                        interface_index=index,
+                        interface_index=iface_index,
                         mac_address=mac,
                     )
 
-                # Render and store config script (keyed to primary/net0 MAC)
-                if vm_template.config_script and primary_mac:
+                # Render and store config script
+                if vm_template.config_script:
                     rendered_script = _render_script(
                         deployed_vm=deployed_vm,
                         script=vm_template.config_script,
                     )
-                    MachineConfig.objects.create(
-                        deployed_vm=deployed_vm,
-                        mac_address=primary_mac,
-                        config_script=rendered_script,
-                    )
+                    if primary_mac:
+                        MachineConfig.objects.create(
+                            deployed_vm=deployed_vm,
+                            mac_address=primary_mac,
+                            config_script=rendered_script,
+                        )
+
                 # Start the VM
                 services.start_vm(user, vm_template.node, newid)
                 deployed_vm.status = 'running'
@@ -305,7 +324,6 @@ def teardown_range(deployment_id):
             except Exception as e:
                 error_msg = str(e)
                 print(f"Error deleting {vm.name}: {error_msg}")
-                # If VM doesn't exist on Proxmox anymore, clean up the database record
                 if '500' in error_msg or 'does not exist' in error_msg or '404' in error_msg:
                     print(f"VM {vm.name} already gone from Proxmox — removing database record")
                     vm.delete()
@@ -313,19 +331,14 @@ def teardown_range(deployment_id):
                     vm.status = 'error'
                     vm.save()
 
-        # Check if all VMs were cleaned up
-        # Check if all VMs were cleaned up
         remaining = deployment.vms.count()
         if remaining == 0:
-            # Clean up network records
             deployment.networks.all().delete()
-            # Log before deleting
             ActivityLog.objects.create(
                 user=user,
                 event_type='deployment_stopped',
                 message=f"Range '{deployment.name}' destroyed and removed."
             )
-            # Delete the deployment record entirely
             deployment.delete()
         else:
             deployment.status = 'fragmented'
@@ -359,12 +372,12 @@ def _map_proxmox_status(status):
     }
     return mapping.get(status, 'error')
 
+
 def _get_next_vmid(user):
     from apps.ranges.models import DeployedVM, SiteSettings, VMIDLock
     from django.db import transaction
 
     with transaction.atomic():
-        # Acquire a database-level lock — only one worker can be here at a time
         VMIDLock.objects.select_for_update().get(pk=1)
 
         site_settings = SiteSettings.get()
@@ -409,10 +422,8 @@ def _get_next_vmid(user):
             f"Consider expanding the range in settings."
         )
 
+
 def _wait_for_task(user, node, upid, timeout=300, interval=3):
-    """
-    Poll a Proxmox task until it completes or times out.
-    """
     elapsed = 0
     while elapsed < timeout:
         status = services.get_task_status(user, node, upid)
@@ -447,15 +458,10 @@ def _extract_all_macs(config):
                         break
     return macs
 
+
 def _render_script(deployed_vm, script):
-    """
-    Render a script by substituting variables with their values.
-    System variables are pulled from DeployedVMConfig.
-    User defined variables are pulled from DeployedVMVariable.
-    """
     from django.template import Template, Context
 
-    # Build context from system variables
     context_data = {}
 
     try:
@@ -468,7 +474,6 @@ def _render_script(deployed_vm, script):
     except Exception:
         pass
 
-    # Add user defined variables
     for var in deployed_vm.variables.all():
         context_data[var.key] = var.value
 
@@ -476,10 +481,8 @@ def _render_script(deployed_vm, script):
     context = Context(context_data)
     return template.render(context)
 
-# --- Error Handling ---
 
 def _sanitize_error(message):
-    """Strip sensitive connection details from error messages."""
     if 'HTTPSConnectionPool' in message or 'ConnectionError' in message:
         return 'Could not connect to Proxmox cluster.'
     if 'Authentication' in message or '401' in message:
@@ -490,5 +493,4 @@ def _sanitize_error(message):
         return 'Permission denied by Proxmox. Check API token permissions.'
     if 'timeout' in message.lower():
         return 'Connection to Proxmox timed out.'
-    # Truncate anything else to 100 chars
     return message[:100] if len(message) > 100 else message
