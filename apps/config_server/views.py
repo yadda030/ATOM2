@@ -16,7 +16,21 @@ def serve_script(request, mac_address):
         config.has_checked_in = True
         config.last_checkin = timezone.now()
         config.save()
-        return HttpResponse(config.config_script, content_type='text/plain')
+
+        content = config.config_script
+
+        # Normalise line endings based on script language
+        if config.deployed_vm and config.deployed_vm.vm_template and config.deployed_vm.vm_template.config_script:
+            language = config.deployed_vm.vm_template.config_script.script_language
+            if language == 'powershell':
+                content = content.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\r\n')
+            else:
+                content = content.replace('\r\n', '\n').replace('\r', '\n')
+        else:
+            # No language info available — default to Unix
+            content = content.replace('\r\n', '\n').replace('\r', '\n')
+
+        return HttpResponse(content, content_type='text/plain')
     except MachineConfig.DoesNotExist:
         raise Http404
 
@@ -143,14 +157,20 @@ def script_delete(request, pk):
     return redirect('script_list')
 
 def serve_script_raw(request, identifier):
-    # Try PK first, then fall back to name
     try:
         pk = int(identifier)
         script = get_object_or_404(Script, pk=pk, visibility__in=('public_view', 'public_edit'))
     except ValueError:
         script = get_object_or_404(Script, name=identifier, visibility__in=('public_view', 'public_edit'))
 
-    return HttpResponse(script.content, content_type='text/plain')
+    content = script.content  # ← this line was missing
+
+    if script.script_language == 'powershell':
+        content = content.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\r\n')
+    else:
+        content = content.replace('\r\n', '\n').replace('\r', '\n')
+
+    return HttpResponse(content, content_type='text/plain')
 
 @login_required
 def script_export(request, pk):

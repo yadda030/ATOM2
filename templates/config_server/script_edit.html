@@ -38,29 +38,58 @@
                 <div class="panel-body">
                     <div class="form-group">
                         <label class="form-label">Script name</label>
-                        <input class="form-input" type="text" name="name" value="{{ form.name.value|default:'' }}" placeholder="e.g. Windows Domain Setup" required />
+                        <input class="form-input" type="text" name="name"
+                            value="{{ form.name.value|default:'' }}"
+                            placeholder="e.g. Windows Domain Setup" required />
                     </div>
                     <div class="form-row">
                         <div class="form-group">
                             <label class="form-label">Type</label>
                             <select class="form-input" name="script_type">
                                 {% for value, label in form.fields.script_type.choices %}
-                                <option value="{{ value }}" {% if form.script_type.value == value %}selected{% endif %}>{{ label }}</option>
+                                <option value="{{ value }}"
+                                    {% if form.script_type.value == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
                                 {% endfor %}
                             </select>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Visibility</label>
-                            <select class="form-input" name="visibility">
-                                <option value="private" {% if form.visibility.value == 'private' %}selected{% endif %}>Private</option>
-                                <option value="public_view" {% if form.visibility.value == 'public_view' %}selected{% endif %}>Public — view only</option>
-                                <option value="public_edit" {% if form.visibility.value == 'public_edit' %}selected{% endif %}>Public — editable</option>
+                            <label class="form-label">Language</label>
+                            <select class="form-input" name="script_language">
+                                {% for value, label in form.fields.script_language.choices %}
+                                <option value="{{ value }}"
+                                    {% if form.script_language.value == value %}selected{% endif %}>
+                                    {{ label }}
+                                </option>
+                                {% endfor %}
                             </select>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label class="form-label">Description</label>
-                        <input class="form-input" type="text" name="description" value="{{ form.description.value|default:'' }}" placeholder="Brief description of what this script does" />
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label class="form-label">Visibility</label>
+                            <select class="form-input" name="visibility">
+                                <option value="private"
+                                    {% if form.visibility.value == 'private' %}selected{% endif %}>
+                                    Private
+                                </option>
+                                <option value="public_view"
+                                    {% if form.visibility.value == 'public_view' %}selected{% endif %}>
+                                    Public — view only
+                                </option>
+                                <option value="public_edit"
+                                    {% if form.visibility.value == 'public_edit' %}selected{% endif %}>
+                                    Public — editable
+                                </option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <input class="form-input" type="text" name="description"
+                                value="{{ form.description.value|default:'' }}"
+                                placeholder="Brief description of what this script does" />
+                        </div>
                     </div>
                 </div>
             </div>
@@ -113,25 +142,44 @@
                         {% for var_form in formset %}
                         <tr class="variable-row">
                             <td>
-                                <input class="variable-input" type="text" name="{{ var_form.key.html_name }}" value="{{ var_form.key.value|default:'' }}" placeholder="variable_name" />
-                                <input type="hidden" name="{{ var_form.DELETE.html_name }}" class="delete-field" value="" />
+                                <input class="variable-input" type="text"
+                                    name="{{ var_form.key.html_name }}"
+                                    value="{{ var_form.key.value|default:'' }}"
+                                    placeholder="variable_name" />
+                                <input type="hidden" name="{{ var_form.DELETE.html_name }}"
+                                    class="delete-field" value="" />
                             </td>
                             <td>
                                 <select class="variable-input" name="{{ var_form.variable_type.html_name }}">
                                     {% for value, label in var_form.fields.variable_type.choices %}
-                                    <option value="{{ value }}" {% if var_form.variable_type.value == value %}selected{% endif %}>{{ label }}</option>
+                                    <option value="{{ value }}"
+                                        {% if var_form.variable_type.value == value %}selected{% endif %}>
+                                        {{ label }}
+                                    </option>
                                     {% endfor %}
                                 </select>
                             </td>
-                            <td><input class="variable-input" type="text" name="{{ var_form.default_value.html_name }}" value="{{ var_form.default_value.value|default:'' }}" placeholder="Optional default" /></td>
-                            <td><input class="variable-input" type="text" name="{{ var_form.description.html_name }}" value="{{ var_form.description.value|default:'' }}" placeholder="What is this variable?" /></td>
+                            <td>
+                                <input class="variable-input" type="text"
+                                    name="{{ var_form.default_value.html_name }}"
+                                    value="{{ var_form.default_value.value|default:'' }}"
+                                    placeholder="Optional default" />
+                            </td>
+                            <td>
+                                <input class="variable-input" type="text"
+                                    name="{{ var_form.description.html_name }}"
+                                    value="{{ var_form.description.value|default:'' }}"
+                                    placeholder="What is this variable?" />
+                            </td>
                             <td>
                                 <select class="variable-input" name="{{ var_form.required.html_name }}">
                                     <option value="True" {% if var_form.required.value %}selected{% endif %}>Required</option>
                                     <option value="False" {% if not var_form.required.value %}selected{% endif %}>Optional</option>
                                 </select>
                             </td>
-                            <td><button type="button" class="btn-remove" onclick="removeVariable(this)">×</button></td>
+                            <td>
+                                <button type="button" class="btn-remove" onclick="removeVariable(this)">×</button>
+                            </td>
                         </tr>
                         {% endfor %}
                     </tbody>
@@ -144,8 +192,12 @@
 
             <div class="editor-card">
                 <div class="editor-toolbar">
-                    <span class="editor-lang">bash / powershell</span>
-                    <span class="editor-hint">Use {% templatetag openvariable %} variable_name {% templatetag closevariable %} for dynamic values</span>
+                    <span class="editor-lang" id="editor-lang-label">
+                        {{ form.script_language.value|default:'bash' }}
+                    </span>
+                    <span class="editor-hint">
+                        Use {% templatetag openvariable %} variable_name {% templatetag closevariable %} for dynamic values
+                    </span>
                 </div>
                 <textarea class="code-area" name="content">{{ form.content.value|default:'' }}</textarea>
             </div>
@@ -198,7 +250,7 @@
                         <div class="guide-desc" style="line-height: 1.7;">
                             • Variables are case sensitive<br>
                             • Use underscores for multi-word keys<br>
-                            • Works with bash, PowerShell, Python<br>
+                            • Works with bash, PowerShell, Python, VyOS<br>
                             • Script is rendered server side before being sent to the VM<br>
                             • Leave default values blank if the variable must always be set at deploy time
                         </div>
@@ -214,5 +266,15 @@
 
 {% block extra_scripts %}
 {% load static %}
+<script>
+    // Update editor language label when language dropdown changes
+    const langSelect = document.querySelector('select[name="script_language"]');
+    const langLabel = document.getElementById('editor-lang-label');
+    if (langSelect && langLabel) {
+        langSelect.addEventListener('change', function() {
+            langLabel.textContent = this.options[this.selectedIndex].text;
+        });
+    }
+</script>
 <script src="{% static 'js/script_edit.js' %}"></script>
 {% endblock %}

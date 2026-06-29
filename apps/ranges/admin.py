@@ -8,7 +8,7 @@ from .models import (
     Tag, RangeTemplate, RangeTemplateNetwork,
     VMTemplate, RangeDeployment, RangeNetwork,
     DeployedVM, DeployedVMConfig, SiteSettings,
-    ActivityLog, DeployedVMNIC,
+    ActivityLog, DeployedVMNIC, DeployedVMVariable
 )
 
 
@@ -183,3 +183,9 @@ class ActivityLogAdmin(admin.ModelAdmin):
 
     def has_delete_permission(self, request, obj=None):
         return request.user.is_superuser
+    
+@admin.register(DeployedVMVariable)
+class DeployedVMVariableAdmin(admin.ModelAdmin):
+    list_display = ('deployed_vm', 'key', 'value')
+    list_filter = ('deployed_vm__deployment',)
+    search_fields = ('key', 'value', 'deployed_vm__name')

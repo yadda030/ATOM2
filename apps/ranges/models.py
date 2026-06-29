@@ -151,6 +151,21 @@ class DeployedVMConfig(models.Model):
     def __str__(self):
         return f"{self.deployed_vm.name} config"
     
+class DeployedVMVariable(models.Model):
+    """
+    Stores per-VM variable values set at deploy time.
+    Used by _render_script() to substitute {{ variable }} placeholders.
+    """
+    deployed_vm = models.ForeignKey(DeployedVM, on_delete=models.CASCADE, related_name='variables')
+    key = models.CharField(max_length=255)
+    value = models.TextField(blank=True, default='')
+
+    class Meta:
+        unique_together = ('deployed_vm', 'key')
+
+    def __str__(self):
+        return f"{self.deployed_vm.name} — {self.key} = {self.value}"
+    
 class ActivityLog(models.Model):
     EVENT_TYPES = [
         ('deployment_started', 'Deployment Started'),

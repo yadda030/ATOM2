@@ -408,13 +408,11 @@ def range_list(request):
 
 @login_required
 def range_deploy(request):
-    # Get available templates
     templates = RangeTemplate.objects.filter(
         created_by=request.user
     ) | RangeTemplate.objects.filter(is_public=True)
     templates = templates.distinct()
 
-    # Get Proxmox pools
     pools = []
     if request.user.has_proxmox_credentials():
         try:
@@ -441,10 +439,48 @@ def range_deploy(request):
             proxmox_pool=pool or None,
         )
 
-        # Trigger Celery deploy task
-        deploy_range.delay(deployment.pk)
+        # Save per-VM configs from form
+        for vm_template in template.vm_templates.all():
+            hostname = request.POST.get(f'vm_{vm_template.pk}_hostname', vm_template.name)
+            ip_address = request.POST.get(f'vm_{vm_template.pk}_ip_address', '')
+            cores = request.POST.get(f'vm_{vm_template.pk}_cores', vm_template.cores)
+            memory = request.POST.get(f'vm_{vm_template.pk}_memory', vm_template.memory)
+            node = request.POST.get(f'vm_{vm_template.pk}_node', vm_template.node)
 
-        messages.success(request, f'Deploying {name} — this may take a few minutes.')
+            # Create a placeholder DeployedVM to attach config to
+            # The real VMID gets set during deploy_range
+            deployed_vm = DeployedVM.objects.create(
+                deployment=deployment,
+                vm_template=vm_template,
+                name=f"{name}-{vm_template.name}",
+                status='pending',
+                node=node,
+            )
+
+            # Create DeployedVMConfig
+            from apps.ranges.models import DeployedVMConfig
+            DeployedVMConfig.objects.create(
+                deployed_vm=deployed_vm,
+                hostname=hostname,
+                ip_address=ip_address or None,
+                cores=cores,
+                memory=memory,
+                node=node,
+            )
+
+            # Save custom variables
+            if vm_template.config_script:
+                from apps.ranges.models import DeployedVMVariable
+                for var in vm_template.config_script.variables.filter(is_system=False):
+                    value = request.POST.get(f'vm_{vm_template.pk}_var_{var.key}', var.default_value or '')
+                    DeployedVMVariable.objects.create(
+                        deployed_vm=deployed_vm,
+                        key=var.key,
+                        value=value,
+                    )
+
+        deploy_range.delay(deployment.pk)
+        messages.success(request, f'Deploying {name}...')
         return redirect('range_list')
 
     context = {

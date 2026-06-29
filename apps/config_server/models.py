@@ -10,6 +10,14 @@ class Script(models.Model):
         ('teardown', 'Teardown'),
     ]
 
+    SCRIPT_LANGUAGES = [
+        ('bash', 'Bash'),
+        ('powershell', 'PowerShell'),
+        ('python', 'Python'),
+        ('vyos', 'VyOS'),
+        ('other', 'Other'),
+    ]
+
     VISIBILITY_CHOICES = [
         ('private', 'Private'),
         ('public_view', 'Public — view only'),
@@ -25,6 +33,13 @@ class Script(models.Model):
     tags = models.ManyToManyField('ranges.Tag', blank=True, related_name='scripts')
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
+
+    script_language = models.CharField(
+        max_length=20,
+        choices=SCRIPT_LANGUAGES,
+        default='bash',
+        help_text="Script language/interpreter"
+    )
 
     def is_editable_by(self, user):
         return self.created_by == user or self.visibility == 'public_edit'
@@ -66,16 +81,3 @@ class MachineConfig(models.Model):
 
     def __str__(self):
         return f"{self.mac_address} - {self.deployed_vm.name}"
-
-
-class DeployedVMVariable(models.Model):
-    deployed_vm = models.ForeignKey(DeployedVM, on_delete=models.CASCADE, related_name='variables')
-    script_variable = models.ForeignKey(ScriptVariable, on_delete=models.SET_NULL, null=True, blank=True)
-    key = models.CharField(max_length=255)
-    value = models.TextField()
-
-    class Meta:
-        unique_together = ('deployed_vm', 'key')
-
-    def __str__(self):
-        return f"{self.deployed_vm.name} - {self.key}={self.value}"

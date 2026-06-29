@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Script, ScriptVariable, MachineConfig, DeployedVMVariable
+from .models import Script, ScriptVariable, MachineConfig
 
 
 class ScriptVariableInline(admin.TabularInline):

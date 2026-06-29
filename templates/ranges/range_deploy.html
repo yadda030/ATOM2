@@ -8,7 +8,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="page" style="max-width: 600px;">
+<div class="page" style="max-width: 700px;">
     <div class="page-header">
         <div class="page-title">Deploy a range</div>
         <a href="{% url 'range_list' %}" class="btn-outline">Cancel</a>
@@ -23,17 +23,16 @@
     <div class="panel">
         <div class="panel-header">Deployment config</div>
         <div class="panel-body">
-            <form method="post">
+            <form method="post" id="deploy-form">
                 {% csrf_token %}
                 <div class="form-group">
                     <label class="form-label">Range name <span class="required">*</span></label>
                     <input class="form-input" type="text" name="name"
                         placeholder="e.g. jsmith-ad-lab-01" required />
-                    <div style="font-size:11px; color:#b0bec8; margin-top:4px;">Use a unique name to identify this deployment</div>
                 </div>
                 <div class="form-group">
                     <label class="form-label">Template <span class="required">*</span></label>
-                    <select class="form-input" name="template" required>
+                    <select class="form-input" name="template" id="template-select" required>
                         <option value="">Select a template</option>
                         {% for template in templates %}
                         <option value="{{ template.pk }}">
@@ -52,6 +51,16 @@
                         {% endfor %}
                     </select>
                 </div>
+
+                <!-- Per-VM config section -->
+                <div id="vm-config-section" style="display:none;">
+                    <div style="border-top: 0.5px solid #dce6ef; margin: 20px 0;"></div>
+                    <div style="font-size:13px; font-weight:500; color:#1a2535; margin-bottom:14px;">
+                        VM configuration
+                    </div>
+                    <div id="vm-config-fields"></div>
+                </div>
+
                 <div style="display:flex; gap:10px; margin-top:20px;">
                     <button type="submit" class="btn-primary">Deploy →</button>
                     <a href="{% url 'range_list' %}" class="btn-outline">Cancel</a>
@@ -60,4 +69,124 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% load static %}
+<script>
+// Template VM data passed from Django
+const TEMPLATE_VMS = {
+    {% for template in templates %}
+    {{ template.pk }}: [
+        {% for vm in template.vm_templates.all %}
+        {
+            pk: {{ vm.pk }},
+            name: "{{ vm.name }}",
+            node: "{{ vm.node }}",
+            cores: {{ vm.cores }},
+            memory: {{ vm.memory }},
+            vars: [
+                {% if vm.config_script %}
+                {% for var in vm.config_script.variables.all %}
+                {% if not var.is_system %}
+                {
+                    key: "{{ var.key }}",
+                    default: "{{ var.default_value|default:'' }}",
+                    required: {{ var.required|lower }},
+                    description: "{{ var.description|default:'' }}"
+                },
+                {% endif %}
+                {% endfor %}
+                {% endif %}
+            ]
+        },
+        {% endfor %}
+    ],
+    {% endfor %}
+};
+
+document.getElementById('template-select').addEventListener('change', function() {
+    const templateId = this.value;
+    const section = document.getElementById('vm-config-section');
+    const fields = document.getElementById('vm-config-fields');
+
+    if (!templateId || !TEMPLATE_VMS[templateId]) {
+        section.style.display = 'none';
+        fields.innerHTML = '';
+        return;
+    }
+
+    const vms = TEMPLATE_VMS[templateId];
+    fields.innerHTML = '';
+
+    vms.forEach(vm => {
+        const div = document.createElement('div');
+        div.style.cssText = 'background:#f5f8fb; border:0.5px solid #dce6ef; border-radius:8px; padding:16px; margin-bottom:12px;';
+        
+        let html = `<div style="font-size:13px; font-weight:500; color:#1a2535; margin-bottom:12px;">
+                        ${vm.name}
+                    </div>
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+                        <div class="form-group">
+                            <label class="form-label">Hostname</label>
+                            <input class="form-input" type="text" 
+                                name="vm_${vm.pk}_hostname" 
+                                value="${vm.name.toLowerCase()}" 
+                                placeholder="e.g. dc01.training.local" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">IP address <span class="optional">(optional)</span></label>
+                            <input class="form-input" type="text" 
+                                name="vm_${vm.pk}_ip_address" 
+                                placeholder="e.g. 10.10.1.10" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Cores</label>
+                            <input class="form-input" type="number" 
+                                name="vm_${vm.pk}_cores" 
+                                value="${vm.cores}" min="1" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Memory MB</label>
+                            <input class="form-input" type="number" 
+                                name="vm_${vm.pk}_memory" 
+                                value="${vm.memory}" min="512" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Node</label>
+                            <input class="form-input" type="text" 
+                                name="vm_${vm.pk}_node" 
+                                value="${vm.node}" />
+                        </div>
+                    </div>`;
+
+        // Custom variables
+        if (vm.vars.length > 0) {
+            html += `<div style="margin-top:10px; border-top:0.5px solid #dce6ef; padding-top:10px;">
+                        <div style="font-size:11px; color:#8a9bb0; margin-bottom:8px; text-transform:uppercase; letter-spacing:0.3px;">Custom variables</div>
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">`;
+            vm.vars.forEach(v => {
+                html += `<div class="form-group">
+                            <label class="form-label">
+                                ${v.key}
+                                ${v.required ? '<span class="required">*</span>' : '<span class="optional">(optional)</span>'}
+                            </label>
+                            ${v.description ? `<div style="font-size:11px; color:#b0bec8; margin-bottom:4px;">${v.description}</div>` : ''}
+                            <input class="form-input" type="text" 
+                                name="vm_${vm.pk}_var_${v.key}" 
+                                value="${v.default}" 
+                                placeholder="${v.default || v.key}"
+                                ${v.required ? 'required' : ''} />
+                        </div>`;
+            });
+            html += `</div></div>`;
+        }
+
+        div.innerHTML = html;
+        fields.appendChild(div);
+    });
+
+    section.style.display = 'block';
+});
+</script>
 {% endblock %}

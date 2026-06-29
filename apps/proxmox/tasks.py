@@ -120,7 +120,7 @@ def poll_user_vms(user_id):
 @shared_task
 def deploy_range(deployment_id):
     try:
-        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog, RangeNetwork
+        from apps.ranges.models import RangeDeployment, DeployedVM, ActivityLog, RangeNetwork, DeployedVMConfig
         deployment = RangeDeployment.objects.get(id=deployment_id)
         user = deployment.user
 
@@ -144,42 +144,68 @@ def deploy_range(deployment_id):
         deployment.save()
 
         # Copy networks from template to deployment
-        template_networks = deployment.range_template.networks.all()
-        range_network_map = {}  # template network pk → RangeNetwork instance
+        # Only create if they don't already exist (deploy form may have created them)
+        if not deployment.networks.exists():
+            template_networks = deployment.range_template.networks.all()
+            range_network_map = {}
+            for tmpl_net in template_networks:
+                range_net = RangeNetwork.objects.create(
+                    deployment=deployment,
+                    name=tmpl_net.name,
+                    proxmox_sdn_zone=tmpl_net.proxmox_sdn_zone,
+                    proxmox_sdn_vnet=tmpl_net.proxmox_sdn_vnet,
+                    subnet=tmpl_net.subnet,
+                    gateway=tmpl_net.gateway,
+                    auto_assign_ips=tmpl_net.auto_assign_ips,
+                    copied_from=tmpl_net,
+                )
+                range_network_map[tmpl_net.pk] = range_net
+        else:
+            # Networks already created by deploy form — build map from existing records
+            range_network_map = {}
+            for range_net in deployment.networks.all():
+                if range_net.copied_from_id:
+                    range_network_map[range_net.copied_from_id] = range_net
 
-        for tmpl_net in template_networks:
-            range_net = RangeNetwork.objects.create(
-                deployment=deployment,
-                name=tmpl_net.name,
-                proxmox_sdn_zone=tmpl_net.proxmox_sdn_zone,
-                proxmox_sdn_vnet=tmpl_net.proxmox_sdn_vnet,
-                subnet=tmpl_net.subnet,
-                gateway=tmpl_net.gateway,
-                auto_assign_ips=tmpl_net.auto_assign_ips,
-                copied_from=tmpl_net,
-            )
-            range_network_map[tmpl_net.pk] = range_net
+        # Check if DeployedVM records were pre-created by the deploy form
+        pre_created_vms = deployment.vms.exists()
 
-        vm_templates = deployment.range_template.vm_templates.all()
+        if pre_created_vms:
+            # Use existing DeployedVM records created by the deploy form
+            vm_iterator = deployment.vms.select_related('vm_template').all()
+        else:
+            # Fall back to creating from template (no per-VM config)
+            vm_iterator = deployment.range_template.vm_templates.all()
 
-        for vm_template in vm_templates:
+        for item in vm_iterator:
+            # Determine deployed_vm and vm_template depending on which path we're on
+            if pre_created_vms:
+                deployed_vm = item
+                vm_template = item.vm_template
+            else:
+                deployed_vm = None
+                vm_template = item
+
             try:
                 # Get next available VMID
                 newid = _get_next_vmid(user)
 
+                vm_name = deployed_vm.name if deployed_vm else f"{deployment.name}-{vm_template.name}"
+                vm_node = deployed_vm.node if deployed_vm else vm_template.node
+
                 # Clone the VM
                 upid = services.clone_vm(
                     user=user,
-                    node=vm_template.node,
+                    node=vm_node,
                     vmid=vm_template.proxmox_template_id,
                     newid=newid,
-                    name=f"{deployment.name}-{vm_template.name}",
+                    name=vm_name,
                 )
 
                 # Wait for clone to complete
-                _wait_for_task(user, vm_template.node, upid)
+                _wait_for_task(user, vm_node, upid)
 
-                # Configure network interfaces from VMTemplateNetwork records
+                # Configure network interfaces
                 try:
                     network_interfaces = vm_template.network_interfaces.all()
                     if network_interfaces:
@@ -202,7 +228,7 @@ def deploy_range(deployment_id):
                                     nic_config[nic_key] = f'virtio,bridge={vnet}'
 
                         if nic_config:
-                            services.update_vm_config(user, vm_template.node, newid, **nic_config)
+                            services.update_vm_config(user, vm_node, newid, **nic_config)
                 except Exception as e:
                     print(f"Warning: Could not configure network interfaces for {vm_template.name}: {e}")
 
@@ -215,44 +241,62 @@ def deploy_range(deployment_id):
                         print(f"Warning: Could not add VM to pool: {e}")
 
                 # Get VM config to capture all MAC addresses
-                config = services.get_vm_config(user, vm_template.node, newid)
+                config = services.get_vm_config(user, vm_node, newid)
                 all_macs = _extract_all_macs(config)
                 primary_mac = all_macs.get(0)
 
-                # Create DeployedVM record
-                deployed_vm = DeployedVM.objects.create(
-                    deployment=deployment,
-                    vm_template=vm_template,
-                    name=f"{deployment.name}-{vm_template.name}",
-                    proxmox_vmid=newid,
-                    mac_address=primary_mac,
-                    status='stopped',
-                    node=vm_template.node,
-                )
-
-                # Store all NIC MACs in DeployedVMNIC records
-                for iface_index, mac in all_macs.items():
-                    DeployedVMNIC.objects.create(
-                        deployed_vm=deployed_vm,
-                        interface_index=iface_index,
-                        mac_address=mac,
+                if deployed_vm:
+                    # Update existing DeployedVM record
+                    deployed_vm.proxmox_vmid = newid
+                    deployed_vm.mac_address = primary_mac
+                    deployed_vm.status = 'stopped'
+                    deployed_vm.save()
+                else:
+                    # Create new DeployedVM record (fallback path)
+                    deployed_vm = DeployedVM.objects.create(
+                        deployment=deployment,
+                        vm_template=vm_template,
+                        name=vm_name,
+                        proxmox_vmid=newid,
+                        mac_address=primary_mac,
+                        status='stopped',
+                        node=vm_node,
                     )
 
+                # Store all NIC MACs
+                for iface_index, mac in all_macs.items():
+                    DeployedVMNIC.objects.get_or_create(
+                        deployed_vm=deployed_vm,
+                        interface_index=iface_index,
+                        defaults={'mac_address': mac}
+                    )
+
+                # Update DeployedVMConfig MAC address now that we have it
+                try:
+                    vm_config = deployed_vm.config
+                    if not vm_config.node:
+                        vm_config.node = vm_node
+                    vm_config.save()
+                except Exception:
+                    pass
+
                 # Render and store config script
-                if vm_template.config_script:
+                if vm_template.config_script and primary_mac:
                     rendered_script = _render_script(
                         deployed_vm=deployed_vm,
                         script=vm_template.config_script,
                     )
-                    if primary_mac:
-                        MachineConfig.objects.create(
-                            deployed_vm=deployed_vm,
-                            mac_address=primary_mac,
-                            config_script=rendered_script,
-                        )
+                    MachineConfig.objects.update_or_create(
+                        mac_address=primary_mac,
+                        defaults={
+                            'deployed_vm': deployed_vm,
+                            'config_script': rendered_script,
+                            'has_checked_in': False,
+                        }
+                    )
 
                 # Start the VM
-                services.start_vm(user, vm_template.node, newid)
+                services.start_vm(user, vm_node, newid)
                 deployed_vm.status = 'running'
                 deployed_vm.save()
 
@@ -269,10 +313,14 @@ def deploy_range(deployment_id):
                     event_type='deployment_failed',
                     message=f"VM '{vm_template.name}' failed: {_sanitize_error(str(e))}"
                 )
-                DeployedVM.objects.filter(
-                    deployment=deployment,
-                    vm_template=vm_template
-                ).update(status='error')
+                if deployed_vm:
+                    deployed_vm.status = 'error'
+                    deployed_vm.save()
+                else:
+                    DeployedVM.objects.filter(
+                        deployment=deployment,
+                        vm_template=vm_template
+                    ).update(status='error')
 
         deployment.status = 'running'
         deployment.save()
@@ -479,7 +527,15 @@ def _render_script(deployed_vm, script):
 
     template = Template(script.content)
     context = Context(context_data)
-    return template.render(context)
+    rendered = template.render(context)
+
+    # Normalise line endings based on script language
+    if script.script_language == 'powershell':
+        rendered = rendered.replace('\r\n', '\n').replace('\r', '\n').replace('\n', '\r\n')
+    else:
+        rendered = rendered.replace('\r\n', '\n').replace('\r', '\n')
+
+    return rendered
 
 
 def _sanitize_error(message):
