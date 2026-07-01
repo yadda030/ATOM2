@@ -1,0 +1,66 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}Atom2 — Admin · Users{% endblock %}
+
+{% block ap_content %}
+<div class="ap-page-title">User management</div>
+
+<div class="ap-panel">
+    <div class="ap-panel-header">
+        <span>{{ users|length }} user{{ users|length|pluralize }}</span>
+        <a href="{% url 'admin:users_user_add' %}" class="ap-btn-primary" style="text-decoration:none;">+ Add user</a>
+    </div>
+    <div class="ap-panel-body">
+        <div class="ap-table-header">
+            <div style="flex:1;">Username</div>
+            <div style="flex:2;">Email</div>
+            <div style="width:80px;">Ranges</div>
+            <div style="width:80px;">Role</div>
+            <div style="width:80px;">Status</div>
+            <div style="width:150px;">Joined</div>
+            <div style="width:120px;">Actions</div>
+        </div>
+        {% for user in users %}
+        <div class="ap-table-row">
+            <div style="flex:1; display:flex; align-items:center; gap:8px;">
+                <div class="ap-avatar">{{ user.username|first|upper }}</div>
+                {{ user.username }}
+            </div>
+            <div style="flex:2; color:#5c6e82;">{{ user.email|default:"—" }}</div>
+            <div style="width:80px; color:#5c6e82;">{{ user.deployment_count }}</div>
+            <div style="width:80px;">
+                {% if user.is_superuser %}
+                <span class="badge" style="background:#f2f1fe; color:#534ab7;">Superuser</span>
+                {% elif user.is_staff %}
+                <span class="badge" style="background:#e6f1fb; color:#185fa5;">Staff</span>
+                {% else %}
+                <span class="badge" style="background:#f1efe8; color:#5f5e5a;">User</span>
+                {% endif %}
+            </div>
+            <div style="width:80px;">
+                {% if user.is_active %}
+                <span class="badge badge-running">Active</span>
+                {% else %}
+                <span class="badge badge-stopped">Disabled</span>
+                {% endif %}
+            </div>
+            <div style="width:150px; color:#8a9bb0; font-size:12px;">{{ user.date_joined|date:"M j, Y" }}</div>
+            <div style="width:120px; display:flex; gap:6px;">
+                <a href="{% url 'admin:users_user_change' user.pk %}" class="ap-btn-outline">Edit</a>
+                {% if user != request.user %}
+                <form method="post" action="{% url 'admin_panel_toggle_user' user.pk %}">
+                    {% csrf_token %}
+                    <button type="submit"
+                        class="{% if user.is_active %}ap-btn-danger{% else %}ap-btn-success{% endif %}">
+                        {% if user.is_active %}Disable{% else %}Enable{% endif %}
+                    </button>
+                </form>
+                {% endif %}
+            </div>
+        </div>
+        {% empty %}
+        <div class="ap-empty">No users found.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

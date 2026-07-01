@@ -1,0 +1,47 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}Atom2 — Admin{% endblock %}
+
+{% block ap_content %}
+<div class="ap-page-title">Dashboard</div>
+
+<!-- Stats — polls every 10s -->
+<div id="ap-stats"
+    hx-get="{% url 'admin_panel_stats' %}"
+    hx-trigger="load, every 10s"
+    hx-swap="innerHTML">
+    {% include 'admin_panel/partials/stats.html' %}
+</div>
+
+<div class="ap-grid-2">
+
+    <!-- Active deployments — polls every 10s -->
+    <div class="ap-panel">
+        <div class="ap-panel-header">
+            <span>Active deployments</span>
+            <a href="{% url 'admin_panel_deployments' %}" class="ap-panel-link">View all →</a>
+        </div>
+        <div id="ap-deployments"
+            hx-get="{% url 'admin_panel_deployments_partial' %}"
+            hx-trigger="load, every 10s"
+            hx-swap="innerHTML">
+            {% include 'admin_panel/partials/deployments.html' %}
+        </div>
+    </div>
+
+    <!-- Recent activity — polls every 15s -->
+    <div class="ap-panel">
+        <div class="ap-panel-header">
+            <span>Recent activity</span>
+            <a href="{% url 'admin_panel_activity' %}" class="ap-panel-link">View all →</a>
+        </div>
+        <div id="ap-activity"
+            hx-get="{% url 'admin_panel_activity_partial' %}"
+            hx-trigger="load, every 15s"
+            hx-swap="innerHTML">
+            {% include 'admin_panel/partials/activity.html' %}
+        </div>
+    </div>
+
+</div>
+{% endblock %}

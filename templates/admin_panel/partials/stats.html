@@ -1,0 +1,23 @@
+<div class="ap-stats-grid">
+    <div class="ap-stat-card">
+        <div class="ap-stat-label">Total users</div>
+        <div class="ap-stat-value">{{ total_users }}</div>
+        <div class="ap-stat-sub">{{ active_today }} active today</div>
+    </div>
+    <div class="ap-stat-card">
+        <div class="ap-stat-label">Active ranges</div>
+        <div class="ap-stat-value">{{ active_deployments_count }}</div>
+        <div class="ap-stat-sub">
+            <span class="ap-dot" style="background:#639922;"></span>
+            {{ total_vms_running }} VMs running
+        </div>
+    </div>
+    <div class="ap-stat-card">
+        <div class="ap-stat-label">Scripts</div>
+        <div class="ap-stat-value">{{ total_scripts }}</div>
+    </div>
+    <div class="ap-stat-card">
+        <div class="ap-stat-label">Templates</div>
+        <div class="ap-stat-value">{{ total_templates }}</div>
+    </div>
+</div>

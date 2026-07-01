@@ -1,0 +1,375 @@
+:root {
+    --primary: #1a2535;
+    --secondary: #a8d4e8;
+    --accent: #378add;
+    --body-bg: #f5f8fb;
+    --content-bg: #ffffff;
+    --border: #dce6ef;
+    --text: #1a2535;
+    --text-muted: #8a9bb0;
+}
+
+/* ── Header / branding ── */
+#header {
+    background: #1a2535 !important;
+    color: #a8d4e8 !important;
+    border-bottom: 1px solid #2e3f55;
+    padding: 12px 2rem;
+}
+
+#site-name a {
+    color: #a8d4e8 !important;
+    font-size: 18px;
+    font-weight: 500;
+    text-decoration: none;
+}
+
+#user-tools {
+    color: #8a9bb0 !important;
+    font-size: 13px;
+}
+
+#user-tools a {
+    color: #a8d4e8 !important;
+    text-decoration: none;
+    border-bottom: none;
+}
+
+#user-tools a:hover { color: #ffffff !important; }
+
+/* ── Navigation ── */
+.module h2, .module caption, .inline-group h2 {
+    background: #1a2535 !important;
+    color: #a8d4e8 !important;
+    font-size: 12px;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    padding: 10px 14px;
+    border-radius: 0;
+}
+
+/* ── Breadcrumbs ── */
+div.breadcrumbs {
+    background: #2e3f55 !important;
+    color: #8a9bb0 !important;
+    padding: 10px 2rem;
+    font-size: 13px;
+}
+
+div.breadcrumbs a {
+    color: #a8d4e8 !important;
+    text-decoration: none;
+}
+
+/* ── Body ── */
+body {
+    background: #f5f8fb !important;
+    color: #1a2535 !important;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+/* ── Content area ── */
+#content {
+    padding: 24px 2rem !important;
+}
+
+#content-main {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+/* ── Sidebar ── */
+#nav-sidebar {
+    background: #ffffff !important;
+    border-right: 0.5px solid #dce6ef !important;
+}
+
+.sticky { background: #ffffff !important; }
+
+/* ── App index ── */
+#content-main .app-atom2,
+.app-auth, .app-ranges, .app-config_server,
+.app-inbox, .app-users, .app-dashboard {
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+    background: #ffffff;
+}
+
+/* ── Change list table ── */
+#result_list {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+#result_list thead th {
+    background: #f5f8fb !important;
+    color: #8a9bb0 !important;
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 10px 14px;
+    border-bottom: 0.5px solid #dce6ef;
+}
+
+#result_list thead th a {
+    color: #8a9bb0 !important;
+}
+
+#result_list thead th.sorted a {
+    color: #378add !important;
+}
+
+#result_list tbody tr {
+    border-bottom: 0.5px solid #f0f4f8;
+}
+
+#result_list tbody tr:hover {
+    background: #f5f8fb !important;
+}
+
+#result_list tbody td {
+    padding: 10px 14px;
+    font-size: 13px;
+    color: #1a2535;
+}
+
+#result_list tbody td a {
+    color: #378add !important;
+    text-decoration: none;
+}
+
+/* ── Action bar ── */
+.action-counter {
+    color: #8a9bb0;
+    font-size: 13px;
+}
+
+/* ── Buttons ── */
+.button, input[type=submit], input[type=button],
+.submit-row input, a.button {
+    background: #1a2535 !important;
+    color: #a8d4e8 !important;
+    border: none !important;
+    border-radius: 6px !important;
+    padding: 8px 18px !important;
+    font-size: 13px !important;
+    font-weight: 500 !important;
+    cursor: pointer !important;
+    text-decoration: none !important;
+}
+
+.button:hover, input[type=submit]:hover {
+    background: #243347 !important;
+}
+
+.button.default, input[type=submit].default {
+    background: #378add !important;
+    color: #ffffff !important;
+}
+
+.deletelink {
+    background: #fcebeb !important;
+    color: #a32d2d !important;
+    border: 0.5px solid #f7c1c1 !important;
+}
+
+/* ── Forms ── */
+.form-row {
+    border-bottom: 0.5px solid #f0f4f8 !important;
+    padding: 12px 14px !important;
+}
+
+input[type=text], input[type=password], input[type=email],
+input[type=number], select, textarea {
+    border: 0.5px solid #dce6ef !important;
+    border-radius: 6px !important;
+    padding: 7px 10px !important;
+    font-size: 13px !important;
+    color: #1a2535 !important;
+    background: #f5f8fb !important;
+    outline: none !important;
+}
+
+input[type=text]:focus, input[type=password]:focus,
+select:focus, textarea:focus {
+    border-color: #a8d4e8 !important;
+}
+
+/* ── Messages/alerts ── */
+.messagelist li {
+    border-radius: 6px;
+    font-size: 13px;
+    padding: 10px 16px;
+    margin-bottom: 8px;
+}
+
+.messagelist li.success {
+    background: #eaf3de;
+    color: #3b6d11;
+    border: 0.5px solid #c0dd97;
+}
+
+.messagelist li.error {
+    background: #fcebeb;
+    color: #a32d2d;
+    border: 0.5px solid #f7c1c1;
+}
+
+.messagelist li.warning {
+    background: #faeeda;
+    color: #854f0b;
+    border: 0.5px solid #fac775;
+}
+
+/* ── Pagination ── */
+.paginator {
+    font-size: 13px;
+    color: #8a9bb0;
+    padding: 12px 14px;
+}
+
+.paginator a {
+    color: #378add !important;
+    text-decoration: none;
+}
+
+/* ── Filters ── */
+#changelist-filter {
+    background: #ffffff !important;
+    border-left: 0.5px solid #dce6ef !important;
+}
+
+#changelist-filter h2 {
+    background: #f5f8fb !important;
+    color: #8a9bb0 !important;
+    font-size: 11px !important;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    padding: 10px 14px;
+    border-bottom: 0.5px solid #dce6ef;
+}
+
+#changelist-filter h3 {
+    color: #1a2535 !important;
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 14px 4px;
+}
+
+#changelist-filter li a {
+    color: #5c6e82 !important;
+    font-size: 13px;
+    padding: 4px 14px;
+    display: block;
+    text-decoration: none;
+}
+
+#changelist-filter li.selected a {
+    color: #378add !important;
+    font-weight: 500;
+}
+
+/* ── Submit row ── */
+.submit-row {
+    background: #f5f8fb !important;
+    border-top: 0.5px solid #dce6ef !important;
+    padding: 12px 14px !important;
+    border-radius: 0 0 10px 10px;
+}
+
+/* ── Inline admin ── */
+.inline-group {
+    border: 0.5px solid #dce6ef !important;
+    border-radius: 10px !important;
+    overflow: hidden !important;
+    margin-top: 16px !important;
+}
+
+.inline-related {
+    border-top: 0.5px solid #f0f4f8 !important;
+}
+
+/* ── Object tools ── */
+.object-tools a {
+    background: #1a2535 !important;
+    color: #a8d4e8 !important;
+    border-radius: 6px !important;
+    font-size: 12px !important;
+    padding: 6px 14px !important;
+    text-decoration: none !important;
+}
+
+.object-tools a:hover {
+    background: #243347 !important;
+}
+
+/* ── Search ── */
+#searchbar {
+    border: 0.5px solid #dce6ef !important;
+    border-radius: 6px !important;
+    padding: 7px 10px !important;
+    font-size: 13px !important;
+    background: #f5f8fb !important;
+    color: #1a2535 !important;
+}
+
+#searchbar:focus {
+    border-color: #a8d4e8 !important;
+    outline: none !important;
+}
+
+input[id="searchbar"] + input[type="submit"] {
+    background: #1a2535 !important;
+    color: #a8d4e8 !important;
+    border-radius: 6px !important;
+    border: none !important;
+    padding: 7px 14px !important;
+    font-size: 13px !important;
+    cursor: pointer !important;
+}
+
+/* ── Dashboard widgets ── */
+.dashboard #content-main {
+    background: transparent;
+    border: none;
+}
+
+.dashboard .module {
+    background: #ffffff;
+    border: 0.5px solid #dce6ef;
+    border-radius: 10px;
+    overflow: hidden;
+    margin-bottom: 16px;
+}
+
+.dashboard .module table {
+    width: 100%;
+}
+
+.dashboard .module table td {
+    padding: 8px 14px;
+    font-size: 13px;
+    border-bottom: 0.5px solid #f0f4f8;
+}
+
+.dashboard .module table td a {
+    color: #378add !important;
+    text-decoration: none;
+}
+
+/* ── Recent actions ── */
+#recent-actions-module .actionlist {
+    padding: 0;
+}
+
+#recent-actions-module .actionlist li {
+    padding: 8px 14px;
+    border-bottom: 0.5px solid #f0f4f8;
+    font-size: 13px;
+}

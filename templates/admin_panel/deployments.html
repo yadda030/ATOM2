@@ -1,0 +1,43 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}Atom2 — Admin · Deployments{% endblock %}
+
+{% block ap_content %}
+<div class="ap-page-title">All deployments</div>
+
+<!-- Filters -->
+<form method="get" class="ap-filter-bar" id="filter-form">
+    <input class="ap-search" type="text" name="search"
+        value="{{ search }}" placeholder="Search by name, user, template..." />
+    <select class="ap-select" name="status">
+        <option value="">All statuses</option>
+        <option value="running" {% if status_filter == 'running' %}selected{% endif %}>Running</option>
+        <option value="stopped" {% if status_filter == 'stopped' %}selected{% endif %}>Stopped</option>
+        <option value="deploying" {% if status_filter == 'deploying' %}selected{% endif %}>Deploying</option>
+        <option value="fragmented" {% if status_filter == 'fragmented' %}selected{% endif %}>Fragmented</option>
+        <option value="error" {% if status_filter == 'error' %}selected{% endif %}>Error</option>
+    </select>
+    <select class="ap-select" name="user">
+        <option value="">All users</option>
+        {% for user in users %}
+        <option value="{{ user.username }}" {% if user_filter == user.username %}selected{% endif %}>
+            {{ user.username }}
+        </option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="ap-btn-primary">Filter</button>
+</form>
+
+<div class="ap-panel">
+    <div class="ap-panel-header">
+        <span>Deployments</span>
+        <span style="font-size:11px; color:#b0bec8;">Auto-refreshes every 10s</span>
+    </div>
+    <div id="deployments-table"
+        hx-get="{% url 'admin_panel_deployments_table' %}?status={{ status_filter }}&search={{ search }}&user={{ user_filter }}"
+        hx-trigger="load, every 10s"
+        hx-swap="innerHTML">
+        {% include 'admin_panel/partials/deployments_table.html' %}
+    </div>
+</div>
+{% endblock %}

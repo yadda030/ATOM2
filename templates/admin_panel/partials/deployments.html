@@ -1,0 +1,17 @@
+{% for deployment in active_deployments|slice:":5" %}
+<div class="ap-table-row">
+    <div class="ap-avatar">{{ deployment.user.username|first|upper }}</div>
+    <div style="flex:1;">
+        <div class="ap-row-title">{{ deployment.name }}</div>
+        <div class="ap-row-sub">{{ deployment.user.username }} · {{ deployment.total_vms }} VMs</div>
+    </div>
+    <span class="badge badge-{{ deployment.status }}">{{ deployment.get_status_display }}</span>
+    <form method="post" action="{% url 'admin_panel_force_destroy' deployment.pk %}" style="display:inline;">
+        {% csrf_token %}
+        <button type="submit" class="ap-btn-danger"
+            onclick="return confirm('Force destroy {{ deployment.name }}?')">Destroy</button>
+    </form>
+</div>
+{% empty %}
+<div class="ap-empty">No active deployments.</div>
+{% endfor %}

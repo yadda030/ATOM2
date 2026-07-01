@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Atom2 — Page not found{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/404.css' %}">
+{% endblock %}
+
+{% block content %}
+<div style="display:flex; align-items:center; justify-content:center; min-height:calc(100vh - 56px);">
+    <div style="text-align:center; padding:40px;">
+        <div style="font-size:80px; font-weight:500; color:#dce6ef; line-height:1; margin-bottom:16px;">404</div>
+        <div style="font-size:22px; font-weight:500; color:#1a2535; margin-bottom:8px;">Page not found</div>
+        <div style="font-size:14px; color:#8a9bb0; margin-bottom:32px;">
+            The page you're looking for doesn't exist or has been removed.
+        </div>
+        <div style="display:flex; gap:10px; justify-content:center;">
+            <a href="{% url 'dashboard' %}" class="btn-primary">Go to dashboard</a>
+            <a href="{% url 'range_list' %}" class="btn-outline">My ranges</a>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,27 @@
+.btn-primary {
+    background: #1a2535;
+    color: #a8d4e8;
+    border: none;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-outline {
+    background: transparent;
+    color: #8a9bb0;
+    border: 0.5px solid #dce6ef;
+    border-radius: 6px;
+    padding: 10px 20px;
+    font-size: 14px;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.btn-primary:hover { background: #243347; }
+.btn-outline:hover { color: #1a2535; border-color: #b0bec8; }

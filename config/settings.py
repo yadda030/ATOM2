@@ -29,6 +29,8 @@ FIELD_ENCRYPTION_KEY = os.getenv('FIELD_ENCRYPTION_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = os.getenv("DEBUG", "False") == "True"
 
+handler404 = 'django.views.defaults.page_not_found'
+
 ALLOWED_HOSTS = os.getenv("ALLOWED_HOSTS", "*").split(",")
 CSRF_TRUSTED_ORIGINS = ['http://localhost:8000']
 
@@ -52,6 +54,7 @@ INSTALLED_APPS = [
     'apps.ranges',
     'apps.users',
     'apps.inbox',
+    'apps.admin_panel',
 ]
 
 MIDDLEWARE = [

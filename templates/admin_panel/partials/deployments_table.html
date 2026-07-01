@@ -1,0 +1,36 @@
+<div class="ap-table-header">
+    <div style="flex:2;">Name</div>
+    <div style="flex:1;">User</div>
+    <div style="flex:1;">Template</div>
+    <div style="width:80px;">VMs</div>
+    <div style="width:100px;">Status</div>
+    <div style="width:140px;">Created</div>
+    <div style="width:140px;">Actions</div>
+</div>
+{% for deployment in deployments %}
+<div class="ap-table-row">
+    <div style="flex:2; font-weight:500; color:#1a2535;">{{ deployment.name }}</div>
+    <div style="flex:1; color:#5c6e82;">{{ deployment.user.username }}</div>
+    <div style="flex:1; color:#5c6e82;">{{ deployment.range_template.name|default:"—"|truncatechars:20 }}</div>
+    <div style="width:80px; color:#5c6e82;">{{ deployment.total_vms }}</div>
+    <div style="width:100px;">
+        <span class="badge badge-{{ deployment.status }}">{{ deployment.get_status_display }}</span>
+    </div>
+    <div style="width:140px; color:#8a9bb0; font-size:12px;">{{ deployment.created_at|timesince }} ago</div>
+    <div style="width:140px; display:flex; gap:6px;">
+        {% if deployment.status == 'running' %}
+        <form method="post" action="{% url 'admin_panel_force_stop' deployment.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="ap-btn-warning">Stop</button>
+        </form>
+        {% endif %}
+        <form method="post" action="{% url 'admin_panel_force_destroy' deployment.pk %}">
+            {% csrf_token %}
+            <button type="submit" class="ap-btn-danger"
+                onclick="return confirm('Force destroy {{ deployment.name }}?')">Destroy</button>
+        </form>
+    </div>
+</div>
+{% empty %}
+<div class="ap-empty">No deployments found.</div>
+{% endfor %}

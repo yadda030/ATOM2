@@ -26,6 +26,9 @@
             Messages
             <span class="nav-unread-dot" id="nav-inbox-badge" style="display:none;"></span>
         </a>
+            {% if request.user.is_staff or request.user.is_superuser %}
+                <a href="{% url 'admin_panel_dashboard' %}" class="nav-link">Admin</a>
+            {% endif %}
         {% endif %}
     </div>
 

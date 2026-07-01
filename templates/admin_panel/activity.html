@@ -1,0 +1,60 @@
+{% extends 'admin_panel/base.html' %}
+
+{% block title %}Atom2 — Admin · Activity{% endblock %}
+
+{% block ap_content %}
+<div class="ap-page-title">Activity log</div>
+
+<!-- Filters -->
+<form method="get" class="ap-filter-bar">
+    <input class="ap-search" type="text" name="search"
+        value="{{ search }}" placeholder="Search messages..." />
+    <select class="ap-select" name="event">
+        <option value="">All events</option>
+        {% for value, label in event_types %}
+        <option value="{{ value }}" {% if event_filter == value %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+    </select>
+    <select class="ap-select" name="user">
+        <option value="">All users</option>
+        {% for user in users %}
+        <option value="{{ user.username }}" {% if user_filter == user.username %}selected{% endif %}>
+            {{ user.username }}
+        </option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="ap-btn-primary">Filter</button>
+</form>
+
+<div class="ap-panel">
+    <div class="ap-panel-header">
+        <span>{{ logs|length }} event{{ logs|length|pluralize }}</span>
+    </div>
+    <div class="ap-panel-body">
+        <div class="ap-table-header">
+            <div style="width:140px;">Event</div>
+            <div style="width:100px;">User</div>
+            <div style="flex:1;">Message</div>
+            <div style="width:160px;">Time</div>
+        </div>
+        {% for log in logs %}
+        <div class="ap-table-row">
+            <div style="width:140px;">
+                <span class="badge
+                    {% if log.event_type == 'deployment_complete' %}badge-running
+                    {% elif log.event_type == 'deployment_failed' %}badge-error
+                    {% elif log.event_type == 'deployment_stopped' %}badge-stopped
+                    {% else %}badge-deploying{% endif %}">
+                    {{ log.get_event_type_display }}
+                </span>
+            </div>
+            <div style="width:100px; color:#5c6e82;">{{ log.user.username|default:"system" }}</div>
+            <div style="flex:1; color:#1a2535;">{{ log.message }}</div>
+            <div style="width:160px; color:#8a9bb0; font-size:12px;">{{ log.created_at|timesince }} ago</div>
+        </div>
+        {% empty %}
+        <div class="ap-empty">No activity found.</div>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

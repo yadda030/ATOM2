@@ -1,0 +1,57 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'css/admin_panel.css' %}">
+{% endblock %}
+
+{% block content %}
+<div class="ap-shell">
+
+    <!-- Sidebar -->
+    <div class="ap-sidebar">
+        <div class="ap-sidebar-section">
+            <div class="ap-sidebar-label">Overview</div>
+            <a href="{% url 'admin_panel_dashboard' %}"
+               class="ap-sidebar-item {% if request.resolver_match.url_name == 'admin_panel_dashboard' %}active{% endif %}">
+                <i class="ti ti-layout-dashboard"></i> Dashboard
+            </a>
+            <a href="{% url 'admin_panel_activity' %}"
+               class="ap-sidebar-item {% if request.resolver_match.url_name == 'admin_panel_activity' %}active{% endif %}">
+                <i class="ti ti-activity"></i> Activity log
+            </a>
+        </div>
+        <div class="ap-sidebar-section">
+            <div class="ap-sidebar-label">Ranges</div>
+            <a href="{% url 'admin_panel_deployments' %}"
+               class="ap-sidebar-item {% if request.resolver_match.url_name == 'admin_panel_deployments' %}active{% endif %}">
+                <i class="ti ti-server"></i> All deployments
+            </a>
+        </div>
+        <div class="ap-sidebar-section">
+            <div class="ap-sidebar-label">Users</div>
+            <a href="{% url 'admin_panel_users' %}"
+               class="ap-sidebar-item {% if request.resolver_match.url_name == 'admin_panel_users' %}active{% endif %}">
+                <i class="ti ti-users"></i> All users
+            </a>
+        </div>
+        <div class="ap-sidebar-section">
+            <div class="ap-sidebar-label">Config</div>
+            <a href="{% url 'admin:index' %}" class="ap-sidebar-item">
+                <i class="ti ti-settings"></i> Django admin
+            </a>
+        </div>
+    </div>
+
+    <!-- Main content -->
+    <div class="ap-content">
+        {% if messages %}
+            {% for message in messages %}
+            <div class="alert alert-{{ message.tags }}" style="margin-bottom:16px;">{{ message }}</div>
+            {% endfor %}
+        {% endif %}
+        {% block ap_content %}{% endblock %}
+    </div>
+
+</div>
+{% endblock %}

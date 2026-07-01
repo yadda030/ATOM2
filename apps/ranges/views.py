@@ -7,6 +7,7 @@ from apps.proxmox.services import get_nodes, get_templates, get_sdn_zones, get_s
 from apps.proxmox.tasks import deploy_range, teardown_range
 import json
 from django.db.models import Q
+from django.http import HttpResponse, Http404
 
 def get_proxmox_data(user):
     proxmox_nodes = []
@@ -492,7 +493,12 @@ def range_deploy(request):
 
 @login_required
 def range_detail(request, pk):
-    deployment = get_object_or_404(RangeDeployment, pk=pk, user=request.user)
+    try:
+        deployment = RangeDeployment.objects.get(pk=pk, user=request.user)
+    except RangeDeployment.DoesNotExist:
+        messages.warning(request, 'This range no longer exists — it may have been destroyed.')
+        return redirect('range_list')
+
     vms = deployment.vms.all()
 
     from .diagram import build_deployment_diagram
@@ -647,7 +653,15 @@ def range_grid(request):
 
 @login_required
 def range_detail_partial(request, pk):
-    deployment = get_object_or_404(RangeDeployment, pk=pk, user=request.user)
+    try:
+        deployment = RangeDeployment.objects.get(pk=pk, user=request.user)
+    except RangeDeployment.DoesNotExist:
+        # HTMX redirect — fires within 30s of destruction
+        from django.urls import reverse
+        response = HttpResponse()
+        response['HX-Redirect'] = reverse('range_list')
+        return response
+
     vms = deployment.vms.all()
     networks = deployment.networks.all()
 

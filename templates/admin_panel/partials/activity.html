@@ -1,0 +1,16 @@
+{% for log in recent_activity %}
+<div class="ap-table-row">
+    <span class="ap-dot" style="background:
+        {% if log.event_type == 'deployment_complete' %}#639922
+        {% elif log.event_type == 'deployment_failed' %}#e24b4a
+        {% elif log.event_type == 'user_registered' %}#378add
+        {% else %}#8a9bb0{% endif %};">
+    </span>
+    <div style="flex:1;">
+        <div class="ap-row-title">{{ log.message|truncatechars:60 }}</div>
+        <div class="ap-row-sub">{{ log.user.username|default:"system" }} · {{ log.created_at|timesince }} ago</div>
+    </div>
+</div>
+{% empty %}
+<div class="ap-empty">No recent activity.</div>
+{% endfor %}

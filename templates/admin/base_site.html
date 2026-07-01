@@ -1,0 +1,13 @@
+{% extends "admin/base.html" %}
+
+{% block branding %}
+<h1 id="site-name">
+    <a href="{% url 'admin:index' %}">Atom2 Django Admin</a>
+</h1>
+{% endblock %}
+
+{% block userlinks %}
+<a href="{% url 'admin_panel_dashboard' %}" style="margin-right:16px;">← Admin Panel</a>
+<a href="{% url 'dashboard' %}" style="margin-right:16px;">← Main Site</a>
+{{ block.super }}
+{% endblock %}

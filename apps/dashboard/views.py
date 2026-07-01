@@ -78,3 +78,6 @@ def connection_status(request):
     return render(request, 'dashboard/partials/connection_status.html', {
         'connection': connection
     })
+
+def custom_404(request, exception):
+    return render(request, '404.html', status=404)
