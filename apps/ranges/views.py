@@ -664,3 +664,10 @@ def range_detail_partial(request, pk):
         'networks': networks,
         'diagram': diagram,
     })
+
+@login_required
+def range_header_partial(request, pk):
+    deployment = get_object_or_404(RangeDeployment, pk=pk, user=request.user)
+    return render(request, 'ranges/partials/range_header_partial.html', {
+        'deployment': deployment,
+    })

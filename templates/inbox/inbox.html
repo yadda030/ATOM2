@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% include 'inbox/thread_partial.html' with conv=active_conv %}
 {% load static %}
 
 {% block title %}Atom2 — Inbox{% endblock %}
@@ -15,9 +16,14 @@
         <div class="inbox-sidebar-header">
             <div class="inbox-sidebar-title">
                 Messages
-                {% if total_unread %}
-                <span class="unread-badge">{{ total_unread }}</span>
-                {% endif %}
+                <span id="unread-badge"
+                    hx-get="{% url 'inbox_unread_count' %}"
+                    hx-trigger="load, every 3s"
+                    hx-swap="innerHTML">
+                    {% if total_unread %}
+                    <span class="unread-badge">{{ total_unread }}</span>
+                    {% endif %}
+                </span>
             </div>
             <a href="{% url 'new_conversation' %}" class="inbox-new-btn">+ New</a>
         </div>

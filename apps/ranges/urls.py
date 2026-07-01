@@ -37,4 +37,5 @@ urlpatterns = [
     path('grid/', views.range_grid, name='range_grid'),
 
     path('<int:pk>/partial/', views.range_detail_partial, name='range_detail_partial'),
+    path('<int:pk>/header/', views.range_header_partial, name='range_header_partial'),
 ]

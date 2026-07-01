@@ -1,0 +1,30 @@
+<span class="badge badge-{{ deployment.status }}" id="deployment-status-badge">
+    {{ deployment.get_status_display }}
+</span>
+
+{% if deployment.status == 'stopped' %}
+<form method="post" action="{% url 'range_start' deployment.pk %}" style="display:inline;">
+    {% csrf_token %}
+    <button type="submit" class="btn-sm btn-start">Start all</button>
+</form>
+{% endif %}
+
+{% if deployment.status == 'running' %}
+<form method="post" action="{% url 'range_stop' deployment.pk %}" style="display:inline;">
+    {% csrf_token %}
+    <button type="submit" class="btn-sm btn-stop">Stop all</button>
+</form>
+{% endif %}
+
+{% if deployment.status in 'running,stopped,fragmented,error' %}
+<form method="post" action="{% url 'range_destroy' deployment.pk %}" style="display:inline;">
+    {% csrf_token %}
+    <button type="submit" class="btn-sm btn-destroy"
+        onclick="return confirm('Destroy all VMs in this range?')">Destroy</button>
+</form>
+{% endif %}
+
+<form method="post" action="{% url 'range_archive' deployment.pk %}" style="display:inline;">
+    {% csrf_token %}
+    <button type="submit" class="btn-sm btn-edit">Archive</button>
+</form>

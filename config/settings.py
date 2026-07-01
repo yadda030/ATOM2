@@ -95,11 +95,19 @@ CHANNEL_LAYERS = {
     'default': {
         'BACKEND': 'channels_redis.core.RedisChannelLayer',
         'CONFIG': {
-            'hosts': [('redis', 6379)],
+            'hosts': [{
+                'host': 'redis',
+                'port': 6379,
+                'socket_keepalive': True,
+                'socket_keepalive_options': {},
+                'retry_on_timeout': True,
+            }],
+            'capacity': 1500,
+            'expiry': 10,
+            'group_expiry': 86400,
         },
     },
 }
-
 # Database
 # https://docs.djangoproject.com/en/6.0/ref/settings/#databases
 

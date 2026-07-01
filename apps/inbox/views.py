@@ -20,8 +20,19 @@ def _get_conversations(user):
 
 @login_required
 def unread_count(request):
-    count = _total_unread(request.user)
-    return JsonResponse({'count': count})
+    from .models import Conversation
+    total_unread = 0
+    for conv in Conversation.objects.filter(participants=request.user):
+        total_unread += conv.messages.filter(is_read=False).exclude(sender=request.user).count()
+
+    # Return JSON for navbar fetch, HTML for HTMX
+    if request.headers.get('HX-Request'):
+        if total_unread:
+            return HttpResponse(f'<span class="unread-badge">{total_unread}</span>')
+        return HttpResponse('')
+    else:
+        from django.http import JsonResponse
+        return JsonResponse({'count': total_unread})
 
 @login_required
 def inbox(request, pk=None):
@@ -59,24 +70,29 @@ def inbox(request, pk=None):
 
 @login_required
 def thread_partial(request, pk):
-    """HTMX partial — returns just the thread panel for a given conversation."""
-    conv = get_object_or_404(Conversation, pk=pk)
+    try:
+        conv = get_object_or_404(Conversation, pk=pk)
 
-    if not request.user.is_staff and request.user not in conv.participants.all():
-        return HttpResponse(status=403)
+        if not request.user.is_staff and request.user not in conv.participants.all():
+            return HttpResponse(status=403)
 
-    conv.messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
+        conv.messages.filter(is_read=False).exclude(sender=request.user).update(is_read=True)
 
-    thread_messages = conv.messages.select_related('sender').all()
-    other_user = conv.other_participant(request.user)
-    presence = other_user.presence_display if other_user else ''
+        thread_messages = conv.messages.select_related('sender').all()
+        other_user = conv.other_participant(request.user)
+        presence = other_user.presence_display if other_user else ''
 
-    return render(request, 'inbox/thread_partial.html', {
-        'conv': conv,
-        'thread_messages': thread_messages,
-        'other_user': other_user,
-        'presence': presence,
-    })
+        return render(request, 'inbox/thread_partial.html', {
+            'conv': conv,
+            'thread_messages': thread_messages,
+            'other_user': other_user,
+            'presence': presence,
+        })
+    except Exception as e:
+        import traceback
+        print(f"THREAD PARTIAL ERROR: {e}")
+        print(traceback.format_exc())
+        raise
 
 
 @login_required
