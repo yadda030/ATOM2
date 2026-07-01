@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from django.core.exceptions import ValidationError
 
 
 class Tag(models.Model):
@@ -49,22 +50,19 @@ class VMTemplate(models.Model):
         return f"{self.name} ({self.proxmox_template_id})"
 
 class VMTemplateNetwork(models.Model):
-    """
-    A network interface attachment for a VMTemplate.
-    Each record represents one NIC on the VM.
-    """
     vm_template = models.ForeignKey(VMTemplate, on_delete=models.CASCADE, related_name='network_interfaces')
     network = models.ForeignKey(RangeTemplateNetwork, on_delete=models.SET_NULL, null=True, blank=True)
-    interface_index = models.IntegerField(default=0, help_text="NIC index e.g. 0=net0, 1=net1")
-    manual_vnet = models.CharField(max_length=255, blank=True, null=True, help_text="Manual vnet if no network selected")
-    vlan_tag = models.PositiveSmallIntegerField(null=True, blank=True, help_text="Optional VLAN tag (1–4094)")
+    interface_index = models.IntegerField(default=1, help_text="NIC index — starts at 1 (net1). net0 is reserved for management.")
+    manual_vnet = models.CharField(max_length=255, blank=True, null=True)
+    vlan_tag = models.PositiveSmallIntegerField(null=True, blank=True)
+
+    def clean(self):
+        if self.interface_index == 0:
+            raise ValidationError("Interface index 0 (net0) is reserved for management. Training networks must start at net1.")
 
     class Meta:
         ordering = ['interface_index']
         unique_together = ('vm_template', 'interface_index')
-
-    def __str__(self):
-        return f"{self.vm_template.name} — net{self.interface_index}"
 
 class RangeDeployment(models.Model):
     STATUS_CHOICES = [

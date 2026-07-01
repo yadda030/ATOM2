@@ -242,7 +242,7 @@ def vm_add(request, pk):
                     VMTemplateNetwork.objects.create(
                         vm_template=vm,
                         network=network,
-                        interface_index=0,
+                        interface_index=1, # changed to 1 to start at net1 and NOT net0 on interfaces
                         vlan_tag=primary_vlan_tag,
                     )
                 except RangeTemplateNetwork.DoesNotExist:
@@ -307,10 +307,11 @@ def vm_network_add(request, pk, vm_pk):
         from .models import VMTemplateNetwork
         networks = request.POST.getlist('network')
         manual_vnets = request.POST.getlist('manual_vnet')
-        vlan_tags = request.POST.getlist('vlan_tag')
+        vlan_tags = request.POST.getlist('vlan_tag')  # ← CHANGE 1: added this line
 
-        # Get current interface count for indexing
+        # Start at net1 — net0 is reserved for management
         existing_count = vm.network_interfaces.count()
+        start_index = max(existing_count + 1, 1)
 
         for i, (network_id, manual_vnet) in enumerate(zip(networks, manual_vnets)):
             network = None
@@ -320,11 +321,10 @@ def vm_network_add(request, pk, vm_pk):
                 except RangeTemplateNetwork.DoesNotExist:
                     pass
 
-            # Skip if both are empty
             if not network and not manual_vnet:
                 continue
 
-            # Parse VLAN tag — blank or out-of-range treated as None
+            # ← CHANGE 2: parse vlan_tag and pass to create()
             vlan_tag = None
             try:
                 raw_tag = vlan_tags[i] if i < len(vlan_tags) else ''
@@ -338,9 +338,9 @@ def vm_network_add(request, pk, vm_pk):
             VMTemplateNetwork.objects.create(
                 vm_template=vm,
                 network=network,
-                interface_index=existing_count + i,
+                interface_index=start_index + i,
                 manual_vnet=manual_vnet or None,
-                vlan_tag=vlan_tag,
+                vlan_tag=vlan_tag,  # ← also added here
             )
 
         messages.success(request, 'Network interfaces saved.')
