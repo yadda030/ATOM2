@@ -5,7 +5,6 @@ echo "Waiting for database..."
 python << 'EOF'
 import socket
 import time
-import os
 
 host = "db"
 port = 5432
@@ -19,8 +18,14 @@ while True:
         time.sleep(1)
 EOF
 
+# Generate migrations first (set AUTO_MAKEMIGRATIONS=0 in production)
+if [ "${AUTO_MAKEMIGRATIONS:-1}" = "1" ]; then
+    echo "Making migrations..."
+    python manage.py makemigrations --noinput
+fi
+
 echo "Running migrations..."
-python manage.py migrate --noinput
+python manage.py migrate --noinput || exit 1
 
 echo "Setting up initial data..."
 python manage.py shell << 'EOF'

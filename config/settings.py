@@ -104,6 +104,8 @@ CHANNEL_LAYERS = {
                 'socket_keepalive': True,
                 'socket_keepalive_options': {},
                 'retry_on_timeout': True,
+                'socket_connect_timeout': 10,
+                'socket_timeout': 10,
             }],
             'capacity': 1500,
             'expiry': 10,

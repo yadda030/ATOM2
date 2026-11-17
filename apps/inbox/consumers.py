@@ -37,9 +37,8 @@ class InboxConsumer(AsyncWebsocketConsumer):
         )
 
     async def _keepalive(self):
-        """Send a ping every 30 seconds to keep the connection alive."""
         while True:
-            await asyncio.sleep(30)
+            await asyncio.sleep(15)  # ← changed from 30 to 15
             try:
                 await self.send(text_data='{"type":"ping"}')
             except Exception:
